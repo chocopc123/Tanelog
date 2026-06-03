@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { 
-  User, System, Plant, ScheduleProposal, ProposalStatus, SystemType, PlantStage 
+  User, System, Plant, ScheduleProposal, ProposalStatus, SystemType, PlantStage, HarvestPrediction 
 } from "./types";
 import { DashboardView } from "./components/DashboardView";
 import { CalendarView } from "./components/CalendarView";
@@ -35,6 +35,10 @@ export default function App() {
   const [proposals, setProposals] = useState<any[]>([]);
   const [selectedPlantDetails, setSelectedPlantDetails] = useState<any | null>(null);
   const [userLocation, setUserLocation] = useState<string>(localStorage.getItem("hydro_location") || "長野県長野市");
+  const [predictions, setPredictions] = useState<HarvestPrediction[]>([]);
+  const [lastCalcAt, setLastCalcAt] = useState<string>("");
+  const [loadingPredictions, setLoadingPredictions] = useState(false);
+  const [predictionsError, setPredictionsError] = useState<string | null>(null);
 
   // Loading Feedback
   const [loading, setLoading] = useState(false);
@@ -49,6 +53,7 @@ export default function App() {
   useEffect(() => {
     if (user) {
       syncDatabase();
+      fetchPredictions(false);
     }
   }, [user]);
 
@@ -58,10 +63,39 @@ export default function App() {
     if (user) {
       interval = setInterval(() => {
         syncDatabase(true);
+        fetchPredictions(false);
       }, 15000);
     }
     return () => clearInterval(interval);
   }, [user]);
+
+  const fetchPredictions = async (force: boolean = false) => {
+    if (!token) return;
+    setLoadingPredictions(true);
+    try {
+      const res = await fetch(`/api/plants/harvest-predictions?force=${force}`, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.predictions) {
+          setPredictions(data.predictions);
+        }
+        if (data.lastHarvestCalculationAt) {
+          setLastCalcAt(data.lastHarvestCalculationAt);
+        }
+        if (data.geminiError) {
+          setPredictionsError(data.geminiError);
+        } else {
+          setPredictionsError(null);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch harvest predictions:", err);
+    } finally {
+      setLoadingPredictions(false);
+    }
+  };
 
   const fetchCurrentUser = async () => {
     try {
@@ -418,9 +452,10 @@ export default function App() {
   };
 
   // Joint cultivator sharing
-  const handleInviteCoopMember = async (plantId: string, email: string) => {
+  const handleInviteCoopMember = async (id: string, email: string) => {
     try {
-      const res = await fetch(`/api/plants/${plantId}/members`, {
+      const url = id.startsWith("sys-") ? `/api/systems/${id}/members` : `/api/plants/${id}/members`;
+      const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -439,9 +474,10 @@ export default function App() {
     }
   };
 
-  const handleRemoveCoopMember = async (plantId: string, userId: string) => {
+  const handleRemoveCoopMember = async (id: string, userId: string) => {
     try {
-      const res = await fetch(`/api/plants/${plantId}/members/${userId}`, {
+      const url = id.startsWith("sys-") ? `/api/systems/${id}/members/${userId}` : `/api/plants/${id}/members/${userId}`;
+      const res = await fetch(url, {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${token}` }
       });
@@ -451,6 +487,28 @@ export default function App() {
           setSelectedPlantDetails(null);
         }
         await syncDatabase();
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleTransferOwnership = async (id: string, newOwnerUserId: string) => {
+    try {
+      const url = id.startsWith("sys-") ? `/api/systems/${id}/transfer-owner` : `/api/plants/${id}/transfer-owner`;
+      const res = await fetch(url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ newOwnerUserId })
+      });
+      if (res.ok) {
+        await syncDatabase();
+      } else {
+        const errorData = await res.json();
+        alert(errorData.error || "所有者の変更に失敗しました。");
       }
     } catch (e) {
       console.error(e);
@@ -634,7 +692,7 @@ export default function App() {
                   onChange={(e) => setLoginEmail(e.target.value)}
                   required
                   placeholder="name@example.com"
-                  className="w-full px-4 py-2.5 text-xs bg-slate-50/50 border border-slate-200 rounded-xl text-slate-800 font-mono focus:bg-white focus:outline-hidden focus:border-emerald-500"
+                  className="w-full px-4 py-2.5 text-base md:text-xs bg-slate-50/50 border border-slate-200 rounded-xl text-slate-800 font-mono focus:bg-white focus:outline-hidden focus:border-emerald-500"
                 />
               </div>
 
@@ -649,7 +707,7 @@ export default function App() {
                     onChange={(e) => setLoginName(e.target.value)}
                     required
                     placeholder="栽培太郎"
-                    className="w-full px-4 py-2.5 text-xs bg-slate-50/50 border border-slate-200 rounded-xl text-slate-800 font-sans focus:bg-white focus:outline-hidden focus:border-emerald-500"
+                    className="w-full px-4 py-2.5 text-base md:text-xs bg-slate-50/50 border border-slate-200 rounded-xl text-slate-800 font-sans focus:bg-white focus:outline-hidden focus:border-emerald-500"
                   />
                 </div>
               )}
@@ -778,6 +836,12 @@ export default function App() {
             plants={plants}
             proposals={proposals}
             userLocation={userLocation}
+            token={token}
+            predictions={predictions}
+            lastCalcAt={lastCalcAt}
+            loadingPredictions={loadingPredictions}
+            predictionsError={predictionsError}
+            onRefreshPredictions={fetchPredictions}
             onApproveProposal={handleApproveProposal}
             onCompleteProposalTask={handleCompleteProposalTask}
             onNavigateToTab={(tabName) => {
@@ -797,6 +861,12 @@ export default function App() {
             systems={systems}
             plants={plants}
             selectedPlant={selectedPlantDetails}
+            predictions={predictions}
+            lastCalcAt={lastCalcAt}
+            loadingPredictions={loadingPredictions}
+            predictionsError={predictionsError}
+            onRefreshPredictions={fetchPredictions}
+            token={token}
             onSelectPlant={handleSelectDetailedPlant}
             onCreateSystem={handleCreateSystem}
             onUpdateSystem={handleUpdateSystem}
@@ -813,6 +883,7 @@ export default function App() {
             onAddPhoto={handleAddGrowPhoto}
             onInviteMember={handleInviteCoopMember}
             onRemoveMember={handleRemoveCoopMember}
+            onTransferOwnership={handleTransferOwnership}
             onSendMessage={handleSendMessageToAI}
             onTriggerAIScheduleProposals={handleTriggerAIScheduleCalculation}
             onApproveProposal={handleApproveProposal}

@@ -69,7 +69,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 type="text" 
                 value={user.email} 
                 disabled 
-                className="w-full px-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-400 font-mono"
+                className="w-full px-4 py-2 text-base md:text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-400 font-mono"
               />
             </div>
 
@@ -82,7 +82,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 value={name} 
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full px-4 py-2.5 text-xs bg-white border border-slate-200 focus:border-emerald-500 focus:outline-hidden rounded-xl text-slate-700"
+                className="w-full px-4 py-2.5 text-base md:text-xs bg-white border border-slate-200 focus:border-emerald-500 focus:outline-hidden rounded-xl text-slate-700"
               />
             </div>
 
@@ -123,7 +123,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                   value={locationStr} 
                   onChange={(e) => setLocationStr(e.target.value)}
                   placeholder="例: 長野県長野市"
-                  className="w-full px-4 py-2.5 text-xs bg-white border border-slate-200 focus:border-emerald-500 focus:outline-hidden rounded-xl text-slate-700 font-sans"
+                  className="w-full px-4 py-2.5 text-base md:text-xs bg-white border border-slate-200 focus:border-emerald-500 focus:outline-hidden rounded-xl text-slate-700 font-sans"
                 />
               </div>
 

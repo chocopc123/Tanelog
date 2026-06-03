@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  User, System, Plant, GrowLog, PlantPhoto, NutrientLog, ChatMessage, MemberRole, SystemType, PlantStage 
+  User, System, Plant, GrowLog, PlantPhoto, NutrientLog, ChatMessage, MemberRole, SystemType, PlantStage, HarvestPrediction 
 } from "../types";
 import { 
   Plus, Droplets, Trash2, Edit3, MessageSquare, ArrowLeft, Calendar, 
@@ -14,6 +14,12 @@ interface SystemPlantsViewProps {
   systems: System[];
   plants: any[]; // Hydrated plants
   selectedPlant: any | null; // Detailed plant state hydrated from backend
+  predictions?: HarvestPrediction[];
+  lastCalcAt?: string;
+  loadingPredictions?: boolean;
+  predictionsError?: string | null;
+  onRefreshPredictions?: (force: boolean) => Promise<void>;
+  token?: string | null;
   onSelectPlant: (id: string | null) => void;
   onCreateSystem: (name: string, type: SystemType, description: string) => void;
   onUpdateSystem: (id: string, payload: any) => Promise<void>;
@@ -30,6 +36,7 @@ interface SystemPlantsViewProps {
   onAddPhoto: (payload: { plantId: string, storageKey: string, caption: string }) => void;
   onInviteMember: (plantId: string, email: string) => void;
   onRemoveMember: (plantId: string, userId: string) => void;
+  onTransferOwnership: (plantId: string, newOwnerUserId: string) => void;
   onSendMessage: (plantId: string, message: string) => Promise<void>;
   onTriggerAIScheduleProposals: (plantId: string) => Promise<void>;
   onApproveProposal: (id: string, status: any, approvedDate?: string) => Promise<void>;
@@ -40,6 +47,12 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
   systems,
   plants,
   selectedPlant,
+  predictions = [],
+  lastCalcAt = "",
+  loadingPredictions = false,
+  predictionsError,
+  onRefreshPredictions,
+  token,
   onSelectPlant,
   onCreateSystem,
   onUpdateSystem,
@@ -56,6 +69,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
   onAddPhoto,
   onInviteMember,
   onRemoveMember,
+  onTransferOwnership,
   onSendMessage,
   onTriggerAIScheduleProposals,
   onApproveProposal
@@ -111,6 +125,10 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
 
   // Collaboration Invitation Input
   const [inviteEmail, setInviteEmail] = useState("");
+
+  // System-level collaboration states
+  const [activeSystemMembersId, setActiveSystemMembersId] = useState<string | null>(null);
+  const [sysInviteEmails, setSysInviteEmails] = useState<{ [systemId: string]: string }>({});
 
   // Tab for Active / Archived
   const [viewArchived, setViewArchived] = useState(false);
@@ -732,6 +750,20 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                           </div>
 
                           <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setActiveSystemMembersId(activeSystemMembersId === sys.id ? null : sys.id);
+                              }}
+                              className={`px-3 py-1.5 text-xs font-bold border rounded-xl flex items-center gap-1 transition-all cursor-pointer ${
+                                activeSystemMembersId === sys.id 
+                                  ? "bg-teal-600 text-white border-teal-600 shadow-xs" 
+                                  : "bg-teal-50 hover:bg-teal-100 text-teal-800 border-teal-100"
+                              }`}
+                              title="共同栽培メンバー・招待・代表者変更の管理"
+                            >
+                              <Users className="w-3.5 h-3.5" /> メンバー ({sys.members?.length || 1})
+                            </button>
+
                             <button 
                               onClick={() => {
                                 setSysIdForNewPlant(sys.id);
@@ -778,6 +810,144 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                           </div>
                         </div>
 
+                        {/* SYSTEM COLLABORATION MEMBERS MANAGEMENT PANEL */}
+                        <AnimatePresence>
+                          {activeSystemMembersId === sys.id && (
+                            <motion.div 
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: "auto" }}
+                              exit={{ opacity: 0, height: 0 }}
+                              className="overflow-hidden"
+                            >
+                              <div className="mt-2 p-5 bg-teal-50/15 rounded-2xl border border-teal-100/50 space-y-4">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <Users className="w-4 h-4 text-teal-650" />
+                                    <h4 className="font-extrabold text-slate-800 text-xs">共同栽培メンバー管理</h4>
+                                  </div>
+                                  <span className="text-[10px] text-slate-400 font-mono">
+                                    ※プランター別の共同共有設定
+                                  </span>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                  {/* Members list */}
+                                  <div className="space-y-2">
+                                    <h5 className="text-[11px] font-bold text-slate-500">参加中の栽培パートナー</h5>
+                                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                                      {sys.members?.map((mem: any, i: number) => {
+                                        const isMyself = mem.userId === user?.id;
+                                        const isOwner = sys.currentUserRole === "owner";
+                                        const showActionBtn = (!isMyself && isOwner) || (isMyself && mem.role !== "owner");
+
+                                        return (
+                                          <div key={mem.userId || i} className="p-2.5 bg-white border border-slate-100 rounded-xl flex items-center justify-between gap-2 shadow-2xs transition-colors hover:border-slate-200">
+                                            <div className="space-y-0.5 min-w-0 flex-1">
+                                              <div className="flex items-center gap-1.5 flex-wrap">
+                                                <span className="font-extrabold text-xs text-slate-750 truncate max-w-[120px]">{mem.name}</span>
+                                                <span className={`text-[9px] font-semibold px-1 rounded ${
+                                                  mem.role === "owner" ? "bg-amber-50 text-amber-800 border border-amber-100/50" : "bg-teal-50 text-teal-800"
+                                                }`}>
+                                                  {mem.role === "owner" ? "オーナー" : "栽培員"}
+                                                </span>
+                                                {isMyself && <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1 rounded">あなた</span>}
+                                              </div>
+                                              <span className="text-[10px] text-slate-400 block truncate" title={mem.email}>{mem.email}</span>
+                                            </div>
+
+                                            <div className="flex items-center gap-1 shrink-0">
+                                              {/* Owner Transfer (only for owner viewing other cultivators) */}
+                                              {isOwner && !isMyself && mem.role !== "owner" && (
+                                                <button
+                                                  onClick={() => {
+                                                    requestConfirm(
+                                                      "オーナー権限の譲渡",
+                                                      `本当に「${mem.name}」さんに、このプランター「${sys.name}」のオーナー（代表所有権）を譲渡しますか？\n\n※譲渡後、あなた自身は共同栽培メンバー（栽培員）となり、プランターの削除や他のメンバーの解任、オーナー権限の変更操作は行えなくなります。`,
+                                                      () => {
+                                                        onTransferOwnership(sys.id, mem.userId);
+                                                        triggerToast(`「${mem.name}」さんにオーナー権限を譲渡しました。`);
+                                                      }
+                                                    );
+                                                  }}
+                                                  className="p-1 px-1.5 text-[9px] bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-20 border-amber-100 rounded-lg font-bold transition-colors cursor-pointer"
+                                                >
+                                                  👑 譲渡
+                                                </button>
+                                              )}
+
+                                              {showActionBtn && (
+                                                <button
+                                                  onClick={() => {
+                                                    const confirmTitle = isMyself ? "共同栽培から退出" : "メンバーの解任";
+                                                    const confirmMsg = isMyself
+                                                      ? `本当にこのプランター「${sys.name}」の栽培員メンバーから退出しますか？`
+                                                      : `本当に「${mem.name}」さんをこのプランターの共同栽培・共有メンバーから解除しますか？`;
+
+                                                    requestConfirm(
+                                                      confirmTitle,
+                                                      confirmMsg,
+                                                      () => {
+                                                        onRemoveMember(sys.id, mem.userId);
+                                                        triggerToast(isMyself ? "退出しました。" : `「${mem.name}」さんを解任しました。`);
+                                                      }
+                                                    );
+                                                  }}
+                                                  className="p-1 px-1.5 text-[9px] bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded-lg font-bold transition-colors cursor-pointer"
+                                                >
+                                                  {isMyself ? "🥾 退出" : "✕ 解除"}
+                                                </button>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+
+                                  {/* Invitation Form */}
+                                  <div className="space-y-2">
+                                    <h5 className="text-[11px] font-bold text-slate-500">栽培パートナーを招待する</h5>
+                                    <form 
+                                      onSubmit={(e) => {
+                                        e.preventDefault();
+                                        const emailToInvite = sysInviteEmails[sys.id]?.trim();
+                                        if (!emailToInvite) return;
+                                        onInviteMember(sys.id, emailToInvite);
+                                        setSysInviteEmails(prev => ({ ...prev, [sys.id]: "" }));
+                                      }}
+                                      className="bg-white border border-slate-100 p-4 rounded-xl space-y-3"
+                                    >
+                                      <div>
+                                        <label className="block text-slate-400 text-[10px] font-bold mb-1">
+                                          招待するパートナーのメールアドレス
+                                        </label>
+                                        <input 
+                                          type="email"
+                                          required
+                                          value={sysInviteEmails[sys.id] || ""}
+                                          onChange={(e) => setSysInviteEmails(prev => ({ ...prev, [sys.id]: e.target.value }))}
+                                          placeholder="companion@example.com"
+                                          className="w-full px-3 py-1.5 text-base md:text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-705 focus:bg-white focus:border-emerald-500 transition-all focus:outline-hidden"
+                                        />
+                                        <p className="text-[9.5px]/relaxed text-slate-400 mt-1 leading-relaxed">
+                                          ※このプランターおよび中の全植物への共同アクセス権が付与されます。お相手が事前にログイン登録を済ませている必要があります。
+                                        </p>
+                                      </div>
+
+                                      <button 
+                                        type="submit"
+                                        className="w-full py-1.5 px-3 bg-teal-600 hover:bg-teal-700 text-white text-[11px]/tight font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                      >
+                                        <span>👥</span> プランターを共同栽培する
+                                      </button>
+                                    </form>
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
                         {/* PLANTS IN THIS SYSTEM ROW CARDS */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2">
                           {sysPlants.length === 0 ? (
@@ -797,6 +967,20 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                                   </span>
                                 );
                               }
+
+                              const prediction = predictions.find(pred => pred.plantId === p.id);
+                              const expDateStr = prediction?.calculatedHarvestDate || p.expectedHarvestDate;
+
+                              const getDaysLeft = (dateStr: string) => {
+                                const today = new Date();
+                                today.setHours(0,0,0,0);
+                                const exp = new Date(dateStr);
+                                exp.setHours(0,0,0,0);
+                                const diff = exp.getTime() - today.getTime();
+                                return Math.ceil(diff / (1000 * 60 * 60 * 24));
+                              };
+
+                              const daysLeft = expDateStr ? getDaysLeft(expDateStr) : null;
 
                               return (
                                 <div 
@@ -824,7 +1008,26 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                                         <span>種まき日：</span>
                                         <span>{p.sowingDate}</span>
                                       </div>
+                                      {expDateStr && (
+                                        <div className="flex justify-between items-baseline pt-1 border-t border-slate-100/50">
+                                          <span>AI予測収穫：</span>
+                                          <div className="text-[11px] flex items-baseline gap-1 font-sans font-bold">
+                                            <span className="text-slate-800">{expDateStr}</span>
+                                            {daysLeft !== null && (
+                                              <span className={`text-[10px] ${daysLeft < 0 ? "text-rose-600" : daysLeft <= 3 ? "text-amber-600 animate-pulse font-extrabold" : daysLeft <= 10 ? "text-emerald-700" : "text-slate-500"}`}>
+                                                ({daysLeft < 0 ? `経過+${Math.abs(daysLeft)}日` : `あと${daysLeft}日`})
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
+
+                                    {prediction?.reason && (
+                                      <div className="mt-2 text-[9.5px]/relaxed text-slate-500 font-sans italic border-l-2 border-emerald-200 pl-2 leading-relaxed" title={prediction.reason}>
+                                        💡 {prediction.reason}
+                                      </div>
+                                    )}
                                   </div>
 
                                   <div className="mt-4 pt-4 border-t border-slate-100/60 flex items-center justify-between gap-2 flex-wrap">
@@ -973,7 +1176,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
               </button>
               <div>
                 <div id="plant-details-breadcrumbs" className="text-[10px] uppercase font-mono tracking-wider font-bold text-slate-400">
-                  {selectedPlant.system ? selectedPlant.system.name : "ハイドロシステム"} &gt; 品種: {selectedPlant.variety}
+                  {selectedPlant.system ? selectedPlant.system.name : "ハイドロプランター"} &gt; 品種: {selectedPlant.variety}
                 </div>
                 <h2 className="text-lg font-extrabold text-slate-800 tracking-tight mt-0.5">
                   🌱 {selectedPlant.name}
@@ -1542,7 +1745,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                       <select 
                         value={nutDilution}
                         onChange={(e) => setNutDilution(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-750"
+                        className="w-full px-3 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-750"
                       >
                         {isSoil && <option value="1">希釈なし (そのまま撒く・置肥)</option>}
                         <option value="1000">1000倍 希釈 (土耕・葉面散布標準)</option>
@@ -1563,7 +1766,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                         value={nutAmount}
                         onChange={(e) => setNutAmount(e.target.value)}
                         placeholder={isSoil ? "例: 10 (10gばらまき、または液肥10ml)" : "例: 4 (A液・B液を各4ml追加)"}
-                        className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-mono"
+                        className="w-full px-3 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-mono"
                       />
                     </div>
 
@@ -1801,7 +2004,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                         onChange={(e) => setAiPrompt(e.target.value)}
                         placeholder="（例）今のpH値を踏まえた水換えタイミングは？"
                         disabled={sendingAi}
-                        className="flex-1 p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-sans text-slate-750 focus:border-indigo-500 focus:outline-hidden disabled:opacity-50"
+                        className="flex-1 p-2.5 bg-white border border-slate-200 rounded-xl text-base md:text-xs font-sans text-slate-750 focus:border-indigo-500 focus:outline-hidden disabled:opacity-50"
                       />
                       <button 
                         type="submit"
@@ -1820,7 +2023,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                         <Sparkles className="w-4 h-4 text-indigo-600" /> Gemini 栽培スケジュール
                       </h4>
                       <p className="text-[11px] text-slate-650 leading-relaxed font-semibold font-sans">
-                        現在の植物タイプ、播種からの経過日数、直近 of 測定ログに基づいて、最適な<strong>水やり/全水換え、施肥、害虫予防や収穫予測カレンダースケジュール</strong>をAIで動的に追加生成します！
+                        現在の植物タイプ、播種からの経過日数、直近の測定ログに基づいて、最適な<strong>水やり/全水換え、施肥、害虫予防や収穫予測カレンダースケジュール</strong>をAIで動的に追加生成します！
                       </p>
                       
                       <button 
@@ -1907,9 +2110,9 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                 <div className="bg-teal-50/40 p-4.5 rounded-2xl border border-teal-100/50 flex gap-3 text-xs leading-relaxed max-w-2xl text-teal-900">
                   <Users className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
                   <div className="space-y-1">
-                    <h4 className="font-extrabold text-teal-850">共同栽培機能 (Cooperative Cultivation)</h4>
-                    <p className="text-slate-600 font-sans">
-                      複数のメンバーを植物ごとに個別に招待し、同じ植物の成長記録ログや施肥・お世話スケジュール、AIチャット診断ログをリアルタイムで共同編集・共有できるシステムです。
+                    <h4 className="font-extrabold text-teal-850">プランター共同栽培・共有機能 (Cooperative Cultivation)</h4>
+                    <p className="text-slate-600 font-sans leading-relaxed">
+                      共有は<strong>プランター（栽培環境・鉢）ごと</strong>行われます。招待したメンバーは、このプランター「<span className="font-bold text-teal-950">{selectedPlant.system?.name || "ハイドロプランター"}</span>」に登録されているすべての植物の成長ログ、施肥・お世話スケジュール、AIチャット診断ログをリアルタイムで共同編集・管理できるようになります。
                     </p>
                   </div>
                 </div>
@@ -1918,12 +2121,16 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                   
                   {/* Current Active cultivation members lists */}
                   <div className="space-y-4">
-                    <h3 className="font-extrabold text-slate-800 text-sm">栽培メンバー一覧</h3>
+                    <h3 className="font-extrabold text-slate-800 text-sm">プランター栽培メンバー</h3>
                     
-                    <div className="space-y-2.5">
+                    <div className="space-y-2.5 font-sans">
                       {selectedPlant.members?.map((mem: any, idx: number) => {
+                        const isMyself = mem.userId === user?.id;
+                        const isOwner = selectedPlant.currentUserRole === "owner";
+                        const showActionBtn = (!isMyself && isOwner) || (isMyself && mem.role !== "owner");
+                        
                         return (
-                          <div key={mem.userId || idx} className="p-3 bg-slate-55 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                          <div key={mem.userId || idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
                             <div className="space-y-0.5 flex-1">
                               <div className="flex items-center gap-2">
                                 <span className="font-bold text-xs text-slate-800">{mem.name}</span>
@@ -1932,12 +2139,59 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                                 }`}>
                                   {mem.role === "owner" ? "オーナー" : "栽培員"}
                                 </span>
+                                {isMyself && <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1 rounded">あなた</span>}
                               </div>
-                              <span className="text-[10px] text-slate-400 font-sans break-all max-w-[200px] block truncate">{mem.email}</span>
+                              <span className="text-[10px] text-slate-400 break-all max-w-[200px] block truncate">{mem.email}</span>
                             </div>
-                            <span className="text-[10px] font-mono font-bold text-slate-500 mr-1 flex items-center gap-1">
-                              {mem.role === "owner" ? "👑 主管" : "🧑‍🌾 コラボ中"}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-mono font-bold text-slate-500 mr-1 flex items-center gap-1">
+                                {mem.role === "owner" ? "👑 オーナー" : "🧑‍🌾 コラボ中"}
+                              </span>
+                              
+                              {/* Transfer ownership button (only shown for owner viewing other normal members) */}
+                              {isOwner && !isMyself && mem.role !== "owner" && (
+                                <button
+                                  onClick={() => {
+                                    requestConfirm(
+                                      "オーナー権限の譲渡",
+                                      `本当に「${mem.name}」さんに、このプランター「${selectedPlant.system?.name || "ハイドロプランター"}」のオーナー（代表権）を譲渡しますか？\n\n※譲渡後、あなた自身は共同栽培メンバー（栽培員）となり、プランターの削除や他のメンバーの解任、オーナー権限の変更操作は行えなくなります。`,
+                                      () => {
+                                        onTransferOwnership(selectedPlant.id, mem.userId);
+                                        triggerToast(`「${mem.name}」さんにオーナー権限を譲渡しました。`);
+                                      }
+                                    );
+                                  }}
+                                  className="p-1 px-1.5 text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-20 border-amber-100 rounded-lg transition-all font-bold cursor-pointer"
+                                  title="オーナー権限を他のメンバーに譲渡します"
+                                >
+                                  👑 オーナー譲渡
+                                </button>
+                              )}
+
+                              {showActionBtn && (
+                                <button
+                                  onClick={() => {
+                                    const confirmTitle = isMyself ? "プランターの共同栽培から退出" : "メンバーの解任";
+                                    const confirmMsg = isMyself
+                                      ? `本当にこのプランター（${selectedPlant.system?.name}）の共同栽培メンバーから退出しますか？共有されている全ての植物から退出となります。`
+                                      : `本当に「${mem.name}」さんをこのプランター（${selectedPlant.system?.name}）の共同栽培メンバーから解任（削除）しますか？`;
+                                    
+                                    requestConfirm(
+                                      confirmTitle,
+                                      confirmMsg,
+                                      () => {
+                                        onRemoveMember(selectedPlant.id, mem.userId);
+                                        triggerToast(isMyself ? "共同栽培から退出しました。" : `「${mem.name}」さんを解任しました。`);
+                                      }
+                                    );
+                                  }}
+                                  className="p-1 px-1.5 text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded-lg transition-all font-bold cursor-pointer"
+                                  title={isMyself ? "退出する" : "解任する"}
+                                >
+                                  {isMyself ? "🥾 退出" : "✕ 解任"}
+                                </button>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
@@ -1945,13 +2199,13 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                   </div>
 
                   {/* Cultivator invitation form section */}
-                  <div className="space-y-4">
-                    <h3 className="font-extrabold text-slate-800 text-sm">栽培メンバーの招待</h3>
+                  <div className="space-y-4 font-sans">
+                    <h3 className="font-extrabold text-slate-800 text-sm">プランター共有メンバーの招待</h3>
                     
                     <form onSubmit={handleAddInvite} className="bg-slate-50/50 border border-slate-100 p-5 rounded-2xl space-y-4">
                       <div>
                         <label className="block text-slate-500 text-[10.5px] font-bold mb-1.5 flex items-center gap-1">
-                          <span>📧</span> 招待するユーザーのメールアドレス
+                          <span>📧</span> 招待するパートナーのメールアドレス
                         </label>
                         <input 
                           type="email"
@@ -1959,15 +2213,18 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                           value={inviteEmail}
                           onChange={(e) => setInviteEmail(e.target.value)}
                           placeholder="例: companion@example.com"
-                          className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-sans"
+                          className="w-full px-3 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700"
                         />
+                        <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
+                          ※招待を送信すると、お相手のアカウントからこのプランターおよび中のすべての植物にアクセスできるようになります。
+                        </p>
                       </div>
                       
                       <button 
                         type="submit"
-                        className="w-full py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold font-sans rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        className="w-full py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
                       >
-                        <span>👥</span> 栽培パートナーとして追加
+                        <span>👥</span> プランター全体を共同栽培する
                       </button>
                     </form>
                   </div>
@@ -2016,7 +2273,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                     type="date" 
                     value={editGrowLoggedAt} 
                     onChange={(e) => setEditGrowLoggedAt(e.target.value)} 
-                    className="w-full max-w-[130px] text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden font-sans transition-all"
+                    className="w-full max-w-[130px] text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden font-sans transition-all"
                   />
                 </div>
                 <div className="flex items-center gap-2 md:pt-6">
@@ -2044,7 +2301,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                     value={editGrowPh} 
                     onChange={(e) => setEditGrowPh(e.target.value)} 
                     placeholder="pH"
-                    className="w-full text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden text-center font-mono transition-all"
+                    className="w-full text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden text-center font-mono transition-all"
                   />
                 </div>
                 <div>
@@ -2057,7 +2314,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                     value={editGrowEc} 
                     onChange={(e) => setEditGrowEc(e.target.value)} 
                     placeholder="EC"
-                    className="w-full text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden text-center font-mono transition-all"
+                    className="w-full text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden text-center font-mono transition-all"
                   />
                 </div>
                 <div>
@@ -2070,7 +2327,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                     value={editGrowWaterTemp} 
                     onChange={(e) => setEditGrowWaterTemp(e.target.value)} 
                     placeholder="水温"
-                    className="w-full text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden text-center font-mono transition-all"
+                    className="w-full text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden text-center font-mono transition-all"
                   />
                 </div>
               </div>
@@ -2082,7 +2339,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                   onChange={(e) => setEditGrowNote(e.target.value)} 
                   placeholder="新芽が出た、根がよく伸びている、葉の色が薄い、などの気づきを記録しましょう。"
                   rows={4}
-                  className="w-full text-sm p-3 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden min-h-[120px] h-auto resize-y font-sans transition-all leading-relaxed"
+                  className="w-full text-base md:text-sm p-3 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden min-h-[120px] h-auto resize-y font-sans transition-all leading-relaxed"
                 />
               </div>
 
@@ -2193,7 +2450,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                     type="date" 
                     value={editNutrientAppliedAt} 
                     onChange={(e) => setEditNutrientAppliedAt(e.target.value)} 
-                    className="w-full max-w-[130px] text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden font-sans transition-all"
+                    className="w-full max-w-[130px] text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden font-sans transition-all"
                   />
                 </div>
                 <div>
@@ -2205,7 +2462,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                     value={editNutrientBrand} 
                     onChange={(e) => setEditNutrientBrand(e.target.value)} 
                     placeholder="ハイポニカ液体肥料 (A液+B液) など"
-                    className="w-full text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden font-sans font-medium transition-all"
+                    className="w-full text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden font-sans font-medium transition-all"
                   />
                 </div>
               </div>
@@ -2216,7 +2473,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                   <select 
                     value={editNutrientDilution} 
                     onChange={(e) => setEditNutrientDilution(e.target.value)} 
-                    className="w-full text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden cursor-pointer transition-all"
+                    className="w-full text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden cursor-pointer transition-all"
                   >
                     <option value="1">希釈なし (置肥/直撒き)</option>
                     <option value="250">250倍希釈</option>
@@ -2233,7 +2490,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                       min="1"
                       value={editNutrientAmount} 
                       onChange={(e) => setEditNutrientAmount(e.target.value)} 
-                      className="w-full text-sm p-2.5 pr-12 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden font-mono text-center transition-all"
+                      className="w-full text-base md:text-sm p-2.5 pr-12 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden font-mono text-center transition-all"
                     />
                     <span className="absolute right-3.5 text-xs font-bold text-slate-400 top-1/2 -translate-y-1/2 select-none">
                       {editNutrientBrand?.includes("緩効性") || editNutrientBrand?.includes("ばらまき") || editNutrientBrand?.includes("有機") ? "g" : "ml"}
@@ -2249,7 +2506,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                   onChange={(e) => setEditNutrientNote(e.target.value)} 
                   placeholder="施肥時に行った他の作業（剪定、溶液 of 全交換など）も合わせて記録しておくと便利です。"
                   rows={4}
-                  className="w-full text-sm p-3 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden min-h-[120px] h-auto resize-y font-sans transition-all leading-relaxed"
+                  className="w-full text-base md:text-sm p-3 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden min-h-[120px] h-auto resize-y font-sans transition-all leading-relaxed"
                 />
               </div>
             </div>

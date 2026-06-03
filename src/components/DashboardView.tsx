@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
-  User, System, Plant, ScheduleProposal, ProposalStatus, ProposalType 
+  User, System, Plant, ScheduleProposal, ProposalStatus, ProposalType, HarvestPrediction 
 } from "../types";
 import { 
   Plus, Calendar, Activity, AlertCircle, Droplets, 
-  Settings, Check, X, ShieldAlert, Users, CloudRain, CheckCircle, Sprout
+  Settings, Check, X, ShieldAlert, Users, CloudRain, CheckCircle, Sprout, Loader2,
+  CalendarClock, Sparkles, Timer, ChevronRight, RefreshCw
 } from "lucide-react";
 
 interface DashboardViewProps {
@@ -13,6 +14,12 @@ interface DashboardViewProps {
   plants: any[]; // Hydrated plants
   proposals: any[];
   userLocation: string;
+  token?: string | null;
+  predictions: HarvestPrediction[];
+  lastCalcAt: string;
+  loadingPredictions: boolean;
+  predictionsError?: string | null;
+  onRefreshPredictions: (force: boolean) => Promise<void>;
   onApproveProposal: (id: string, status: ProposalStatus) => void;
   onCompleteProposalTask?: (task: any) => Promise<void>;
   onNavigateToTab: (tab: string) => void;
@@ -26,6 +33,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   plants,
   proposals,
   userLocation,
+  token,
+  predictions,
+  lastCalcAt,
+  loadingPredictions,
+  predictionsError,
+  onRefreshPredictions,
   onApproveProposal,
   onCompleteProposalTask,
   onNavigateToTab,
@@ -33,6 +46,44 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onAddSystemClick
 }) => {
   const [toastMsg, setToastMsg] = useState("");
+  const [weatherAdvice, setWeatherAdvice] = useState<string | null>(null);
+  const [loadingWeather, setLoadingWeather] = useState(false);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const fetchWeatherAdvice = async () => {
+      setLoadingWeather(true);
+      setWeatherError(null);
+      try {
+        const headers: { [key: string]: string } = {};
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+        const res = await fetch(`/api/weather-advice?location=${encodeURIComponent(userLocation || "長野県長野市")}`, {
+          headers
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (active && data.advice) {
+            setWeatherAdvice(data.advice);
+          }
+          if (active && data.geminiError) {
+            setWeatherError(data.geminiError);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch climate/weather advice:", err);
+      } finally {
+        if (active) setLoadingWeather(false);
+      }
+    };
+
+    fetchWeatherAdvice();
+    return () => {
+      active = false;
+    };
+  }, [userLocation, token]);
 
   const triggerLocalToast = (msg: string) => {
     setToastMsg(msg);
@@ -53,6 +104,40 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
   return (
     <div id="dashboard-view-container" className="space-y-6">
+      {/* AI Weather Advice Alert Box */}
+      {loadingWeather ? (
+        <div id="weather-advice-loading" className="bg-slate-50 border border-slate-100 p-4 rounded-2xl shadow-2xs flex items-center gap-3 animate-pulse">
+          <Loader2 className="w-5 h-5 text-teal-600 animate-spin shrink-0" />
+          <span className="text-xs text-slate-500 font-bold font-sans">
+            地域の最新気象情報をふまえて、Gemini AIが栽培アドバイスを生成中... 🌱
+          </span>
+        </div>
+      ) : weatherAdvice ? (
+        <div id="weather-advice-banner" className="bg-gradient-to-br from-teal-50/70 to-emerald-50/55 border border-emerald-100/60 p-4.5 rounded-2xl shadow-3xs flex gap-3.5 animate-in fade-in slide-in-from-top-4 duration-300">
+          <div className="bg-emerald-100/60 p-2.5 rounded-xl text-emerald-700 shrink-0 self-start md:self-center">
+            <CloudRain className="w-5 h-5 text-emerald-600 animate-pulse" />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] bg-teal-600 text-white font-mono font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wide">
+                AI園芸気候アラート
+              </span>
+              <span className="text-[10px] text-slate-500 font-bold font-mono">
+                {userLocation || "未設定の地域"}
+              </span>
+              {weatherError && (
+                <span className="text-[9px] bg-amber-50 text-amber-600 font-bold border border-amber-200/50 px-2 py-0.5 rounded-md animate-pulse">
+                  {weatherError === "quota_exceeded" ? "⚠️ Gemini利用上限のためローカルモデルで動作中" : "⚠️ AI通信制限のためローカル機能で動作中"}
+                </span>
+              )}
+            </div>
+            <p className="text-slate-700 text-xs md:text-xs/relaxed leading-relaxed font-semibold">
+              {weatherAdvice}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       {/* Welcome Banner */}
       <div id="welcome-banner" className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-6 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -168,16 +253,41 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Systems grid and Plant lists */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
-            <Sprout className="w-5 h-5 text-emerald-600" /> マイプランターと植物一覧
-          </h3>
-          <button 
-            onClick={onAddSystemClick}
-            className="px-3.5 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl flex items-center gap-1 transition-colors"
-          >
-            <Plus className="w-4 h-4" /> プランターを追加
-          </button>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+          <div>
+            <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2">
+              <Sprout className="w-5 h-5 text-emerald-600" /> マイプランターと植物一覧
+            </h3>
+            {lastCalcAt && (
+              <p className="text-[10px] text-slate-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
+                <span>AI収穫更新: 週2回(3日おき) | 前回実行: {new Date(lastCalcAt).toLocaleString("ja-JP")}</span>
+                {predictionsError && (
+                  <span className="text-[9px] bg-amber-50 text-amber-600 font-bold border border-amber-200/40 px-1.5 py-0.2 rounded">
+                    {predictionsError === "quota_exceeded" ? "⚠️ Gemini上限のためローカル予測中" : "⚠️ AI通信制限のためローカル安全予測中"}
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={async () => {
+                await onRefreshPredictions(true);
+                triggerLocalToast("🌱 最新の成長・お世話ログから、AI収穫予測値を再計算しました！");
+              }}
+              disabled={loadingPredictions}
+              className="px-3.5 py-1.5 text-xs font-bold text-teal-700 bg-teal-50 hover:bg-teal-100 rounded-xl flex items-center gap-1.5 transition-colors cursor-pointer disabled:opacity-50 select-none"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingPredictions ? "animate-spin" : ""}`} />
+              {loadingPredictions ? "AI計算中..." : "AI収穫予測の更新"}
+            </button>
+            <button 
+              onClick={onAddSystemClick}
+              className="px-3.5 py-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl flex items-center gap-1 transition-colors"
+            >
+              <Plus className="w-4 h-4" /> プランターを追加
+            </button>
+          </div>
         </div>
 
         {systems.length === 0 ? (
@@ -188,7 +298,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {systems.map((sys) => {
               // Plants in this system
-              const sysPlants = plants.filter(p => p.systemId === sys.id);
+              const sysPlants = plants.filter(p => p.systemId === sys.id && !p.archived);
 
               return (
                 <div key={sys.id} className="bg-white rounded-2xl border border-slate-100 shadow-xs hover:shadow-md transition-shadow flex flex-col overflow-hidden">
@@ -220,24 +330,59 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                             else if (p.stage === "harvest") { stageLabel = "収穫期"; stageColor = "text-emerald-700 bg-emerald-50 border-emerald-100"; }
                             else if (p.stage === "finished") { stageLabel = "栽培終了"; stageColor = "text-slate-500 bg-slate-100 border-slate-200"; }
 
+                            const prediction = predictions.find(pred => pred.plantId === p.id);
+                            const expDateStr = prediction?.calculatedHarvestDate || p.expectedHarvestDate;
+
+                            const getDaysLeft = (dateStr: string) => {
+                              const today = new Date();
+                              today.setHours(0,0,0,0);
+                              const exp = new Date(dateStr);
+                              exp.setHours(0,0,0,0);
+                              const diff = exp.getTime() - today.getTime();
+                              return Math.ceil(diff / (1000 * 60 * 60 * 24));
+                            };
+
+                            const daysLeft = expDateStr ? getDaysLeft(expDateStr) : null;
+
                             return (
                               <div 
                                 key={p.id} 
                                 onClick={() => onSelectPlant(p.id)}
-                                className="flex items-center justify-between p-2 hover:bg-slate-50/80 rounded-xl cursor-pointer border border-slate-100 transition-colors"
+                                className="flex flex-col gap-1.5 p-3 hover:bg-slate-50/80 rounded-xl cursor-pointer border border-slate-100 transition-colors"
                               >
-                                <div className="space-y-0.5">
-                                  <div className="text-xs font-bold text-slate-800">{p.name}</div>
-                                  <div className="text-[10px] text-slate-400 font-mono">播種: {p.sowingDate}</div>
+                                <div className="flex items-center justify-between">
+                                  <div className="space-y-0.5">
+                                    <div className="text-xs font-bold text-slate-800">{p.name}</div>
+                                    <div className="text-[10px] text-slate-400 font-mono">播種: {p.sowingDate}</div>
+                                  </div>
+                                  <div className="flex items-center gap-1.5">
+                                    {p.members && p.members.length > 1 && (
+                                      <Users className="w-3.5 h-3.5 text-emerald-600" title="共同栽培推進中" />
+                                    )}
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded border ${stageColor}`}>
+                                      {stageLabel}
+                                    </span>
+                                  </div>
                                 </div>
-                                <div className="flex items-center gap-1.5">
-                                  {p.members && p.members.length > 1 && (
-                                    <Users className="w-3.5 h-3.5 text-emerald-600" title="共同栽培推進中" />
-                                  )}
-                                  <span className={`text-[10px] px-1.5 py-0.5 rounded border ${stageColor}`}>
-                                    {stageLabel}
-                                  </span>
-                                </div>
+
+                                {expDateStr && (
+                                  <div className="mt-1 flex items-center justify-between bg-emerald-50/20 px-2.5 py-1.5 rounded-lg text-[9.5px] border border-emerald-100/30">
+                                    <span className="text-slate-500 font-mono">
+                                      予測収穫: {expDateStr}
+                                    </span>
+                                    {daysLeft !== null && (
+                                      <span className={`font-mono font-bold ${daysLeft < 0 ? "text-rose-600" : daysLeft <= 3 ? "text-amber-600 font-extrabold animate-pulse" : daysLeft <= 10 ? "text-emerald-750" : "text-slate-600"}`}>
+                                        {daysLeft < 0 ? `(経過 +${Math.abs(daysLeft)}日)` : daysLeft <= 3 ? `(🔥 収穫適期! あと${daysLeft}日)` : `(あと ${daysLeft} 日)`}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+
+                                {prediction?.reason && (
+                                  <p className="text-[9px]/relaxed text-slate-500 italic mt-0.5 font-medium" title={prediction.reason}>
+                                    💡 {prediction.reason}
+                                  </p>
+                                )}
                               </div>
                             );
                           })}

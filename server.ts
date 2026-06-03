@@ -2,7 +2,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -20,20 +20,28 @@ const DB_PATH = path.join(process.cwd(), "db.json");
 
 // System-wide Types
 import { 
-  User, System, Plant, PlantMember, GrowLog, PlantPhoto, 
-  NutrientLog, ChatMessage, ScheduleProposal 
+  User, System, SystemMember, Plant, GrowLog, PlantPhoto, 
+  NutrientLog, ChatMessage, ScheduleProposal, HarvestPrediction 
 } from "./src/types";
 
 interface DBStructure {
   users: User[];
   systems: System[];
   plants: Plant[];
-  plantMembers: PlantMember[];
+  systemMembers: SystemMember[];
   growLogs: GrowLog[];
   plantPhotos: PlantPhoto[];
   nutrientLogs: NutrientLog[];
   chatMessages: ChatMessage[];
   scheduleProposals: ScheduleProposal[];
+  weatherAdviceCache?: {
+    [location: string]: {
+      date: string;
+      content: string;
+    };
+  };
+  harvestPredictions?: HarvestPrediction[];
+  lastHarvestCalculationAt?: string;
 }
 
 // Initial Database Helper
@@ -45,19 +53,64 @@ function readDB(): DBStructure {
       return initial;
     }
     const content = fs.readFileSync(DB_PATH, "utf8");
-    return JSON.parse(content);
+    const parsed = JSON.parse(content);
+
+    // Ensure all required fields exist
+    parsed.users = parsed.users || [];
+    parsed.systems = parsed.systems || [];
+    parsed.plants = parsed.plants || [];
+
+    // Check if systemMembers is missing or empty, and migrate if plantMembers exists
+    if (!parsed.systemMembers || parsed.systemMembers.length === 0) {
+      if (parsed.plantMembers && parsed.plantMembers.length > 0) {
+        parsed.systemMembers = [];
+        for (const pm of parsed.plantMembers) {
+          const p = parsed.plants.find((x: any) => x.id === pm.plantId);
+          if (p) {
+            const exists = parsed.systemMembers.some((sm: any) => sm.systemId === p.systemId && sm.userId === pm.userId);
+            if (!exists) {
+              parsed.systemMembers.push({
+                id: pm.id || ("sm-" + Date.now() + Math.random()),
+                systemId: p.systemId,
+                userId: pm.userId,
+                role: pm.role || "member",
+                joinedAt: pm.joinedAt || new Date().toISOString()
+              });
+            }
+          }
+        }
+        // Write the migrated data back to db.json
+        fs.writeFileSync(DB_PATH, JSON.stringify(parsed, null, 2), "utf8");
+      } else {
+        parsed.systemMembers = [];
+      }
+    }
+
+    parsed.growLogs = parsed.growLogs || [];
+    parsed.plantPhotos = parsed.plantPhotos || [];
+    parsed.nutrientLogs = parsed.nutrientLogs || [];
+    parsed.chatMessages = parsed.chatMessages || [];
+    parsed.scheduleProposals = parsed.scheduleProposals || [];
+    parsed.weatherAdviceCache = parsed.weatherAdviceCache || {};
+    parsed.harvestPredictions = parsed.harvestPredictions || [];
+    parsed.lastHarvestCalculationAt = parsed.lastHarvestCalculationAt || "";
+
+    return parsed;
   } catch (error) {
     console.error("Failed to read database, returning empty schemas:", error);
     return {
       users: [],
       systems: [],
       plants: [],
-      plantMembers: [],
+      systemMembers: [],
       growLogs: [],
       plantPhotos: [],
       nutrientLogs: [],
       chatMessages: [],
-      scheduleProposals: []
+      scheduleProposals: [],
+      weatherAdviceCache: {},
+      harvestPredictions: [],
+      lastHarvestCalculationAt: ""
     };
   }
 }
@@ -90,9 +143,9 @@ function createSeedData(): DBStructure {
   const sys1: System = {
     id: "sys-1",
     userId: "user-1",
-    name: "リビングのDWC装置 (循環水耕)",
+    name: "リビングのDWC容器 (循環水耕プランター)",
     type: "DWC",
-    description: "自作の深水循環式コップ栽培セット。エアーポンプ付きの室内水耕ユニット。",
+    description: "自作の深水循環コップ水耕セット。エアーポンプ付きの室内水耕プランター。",
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
   };
@@ -157,42 +210,42 @@ function createSeedData(): DBStructure {
     updatedAt: new Date().toISOString()
   };
 
-  // Plant Collaboration members
-  const member1: PlantMember = {
+  // Planter Collaboration members
+  const member1: SystemMember = {
     id: "member-1",
-    plantId: "plant-1",
+    systemId: "sys-1",
     userId: "user-1",
     role: "owner",
     joinedAt: new Date().toISOString()
   };
 
-  const member2: PlantMember = {
+  const member2: SystemMember = {
     id: "member-2",
-    plantId: "plant-1",
+    systemId: "sys-1",
     userId: "user-2",
     role: "member",
     joinedAt: new Date().toISOString()
   };
 
-  const member3: PlantMember = {
+  const member3: SystemMember = {
     id: "member-3",
-    plantId: "plant-2",
+    systemId: "sys-2",
     userId: "user-1",
     role: "owner",
     joinedAt: new Date().toISOString()
   };
 
-  const member4: PlantMember = {
+  const member4: SystemMember = {
     id: "member-4",
-    plantId: "plant-3",
+    systemId: "sys-3",
     userId: "user-1",
     role: "owner",
     joinedAt: new Date().toISOString()
   };
 
-  const member5: PlantMember = {
+  const member5: SystemMember = {
     id: "member-5",
-    plantId: "plant-3",
+    systemId: "sys-3",
     userId: "user-2",
     role: "member",
     joinedAt: new Date().toISOString()
@@ -304,7 +357,7 @@ function createSeedData(): DBStructure {
     users: [defaultUser, coopUser],
     systems: [sys1, sys2, sys3],
     plants: [plant1, plant2, plant3],
-    plantMembers: [member1, member2, member3, member4, member5],
+    systemMembers: [member1, member2, member3, member4, member5],
     growLogs: [log1, log2, log3],
     plantPhotos: [seedPhoto1],
     nutrientLogs: [nLog1, nLog2],
@@ -407,6 +460,282 @@ app.get("/api/auth/me", (req, res) => {
   res.json({ user });
 });
 
+app.get("/api/weather-advice", async (req, res) => {
+  const user = getUserContext(req);
+  const location = (req.query.location as string || "長野県長野市").trim();
+  
+  const currentDb = readDB();
+  if (!currentDb.weatherAdviceCache) {
+    currentDb.weatherAdviceCache = {};
+  }
+  
+  // JST time helper to calculate JST Date YYYY-MM-DD
+  const todayJst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().substring(0, 10);
+  
+  const cacheKey = location;
+  const cached = currentDb.weatherAdviceCache[cacheKey];
+  
+  if (cached && cached.date === todayJst) {
+    return res.json({ advice: cached.content, date: cached.date, location });
+  }
+  
+  let generatedAdvice = "";
+  let geminiError: string | null = null;
+  if (geminiClient) {
+    try {
+      const prompt = `「${location}」の本日および明日・今週の最新の天気予報、気温、降水量、気象警告などの情報を気象庁データやWebサイト等から調査してください。
+園芸、家庭菜園、または温室・プランター栽培の観点で、明日またはこれからの気候に合わせた、栽培者向けの具体的で役立つお世話アドバイスや警告メッセージ（例：「明日は気温が大幅に下がるため、夜間冷え込みに備えて室内に取り込むか、水やりを最小限に控えてください」「明日は雲ひとつない猛暑日が予想されます。水分不足にならないよう注意し、必要なら遮光などの対策を行ってください」など）を2〜3文程度で簡潔に生成してください。
+
+【出力ルール】
+- 栽培や天気に関する絵文字「🌱」「☀️」「⚠️」「☔️」などを適宜交え、日本語で温かみのある表現にしてください。
+- 余計な説明、前置き、導入部分（「検索の結果…」「気象によると…」など）や挨拶文は一切含めず、「そのままお知らせバナーに表示」できるようなアドバイス文（2〜3文）だけを出力してください。`;
+
+      const aiResponse = await geminiClient.models.generateContent({
+        model: "gemini-3.1-flash-lite",
+        contents: prompt,
+        config: {
+          systemInstruction: "あなたは親切なAI家庭菜園・園芸アドバイザーです。アクティブ地域における最新の実際の気象予報を検索し、明日の栽培のお世話に必要なアドバイスを具体的・明確・簡潔に提示します。",
+          tools: [{ googleSearch: {} }]
+        }
+      });
+      
+      generatedAdvice = aiResponse.text?.trim() || "";
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      console.warn("Weather advice Gemini call failed: using local fallback advice. Info:", errMsg);
+      if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("Quota") || errMsg.includes("limit")) {
+        geminiError = "quota_exceeded";
+      } else {
+        geminiError = "api_error";
+      }
+    }
+  }
+  
+  if (!generatedAdvice) {
+    const month = new Date(Date.now() + 9 * 60 * 60 * 1000).getMonth() + 1;
+    const fallbacks = [
+      `本日の ${location} の気象傾向を考慮すると、現在の ${month} 月は湿度や風向きの変動が大きくなりやすい時期です。今後の気温低下による冷え込み、または過湿過多を防を防ぐため、プランターの土が十分に乾いていることを確認してから水やりを行いましょう。🌱`,
+      `地域の最新気候に基づき、明日は予報温度が前後するおそれがあります。過剰な水分は根を傷める原因になりますので、明日一日の水やりは控えめにして、適宜風通しの良い環境で栽培を見守りましょう。⚠️`,
+      `気候シミュレーションによると、本日の ${location} 周辺は安定期に入っています。明日の日照と気温変化を確認しながら、多湿を好まない植物は夕方の灌水を避け、朝にさらっと吸水させる程度のお世話が推奨されます。🍁`
+    ];
+    generatedAdvice = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+  }
+  
+  currentDb.weatherAdviceCache[cacheKey] = {
+    date: todayJst,
+    content: generatedAdvice
+  };
+  writeDB(currentDb);
+  
+  res.json({ advice: generatedAdvice, date: todayJst, location, geminiError });
+});
+
+app.get("/api/plants/harvest-predictions", async (req, res) => {
+  const user = getUserContext(req);
+  const force = req.query.force === "true";
+  
+  const currentDb = readDB();
+  
+  const now = new Date();
+  const lastCalc = currentDb.lastHarvestCalculationAt ? new Date(currentDb.lastHarvestCalculationAt) : null;
+  
+  // Hours elapsed since last run, default to Infinity if no previous run
+  const hoursSinceLastCalc = lastCalc ? (now.getTime() - lastCalc.getTime()) / (1000 * 60 * 60) : Infinity;
+  // Automatically trigger if last calculation was more than 72 hours ago (approx twice a week), or if forced
+  const shouldCalculate = hoursSinceLastCalc >= 72 || force;
+  
+  const activePlants = currentDb.plants.filter(p => p.userId === user.id && !p.archived && p.stage !== 'finished');
+
+  let geminiError: string | null = null;
+
+  if (shouldCalculate && activePlants.length > 0) {
+    let aiPredictions: { plantId: string; calculatedHarvestDate: string; reason: string }[] = [];
+    let usedAi = false;
+
+    // Attempt prediction utilizing Gemini Client if available
+    if (geminiClient && process.env.GEMINI_API_KEY) {
+      try {
+        const plantsPayload = activePlants.map(p => {
+          const logs = currentDb.growLogs
+            .filter(l => l.plantId === p.id)
+            .sort((a,b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime())
+            .slice(0, 5)
+            .map(l => ({
+              loggedAt: l.loggedAt,
+              ph: l.ph,
+              ec: l.ec,
+              waterTemp: l.waterTemp,
+              note: l.note
+            }));
+          
+          return {
+            id: p.id,
+            name: p.name,
+            variety: p.variety,
+            stage: p.stage,
+            sowingDate: p.sowingDate,
+            currentExpectedHarvestDate: p.expectedHarvestDate,
+            recentLogs: logs
+          };
+        });
+
+        const todayStr = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().substring(0, 10);
+        const prompt = `あなたは優秀な水耕栽培、園芸、およびプランター栽培のAIエキスパートです。
+以下の植物リストと、それぞれの最新の成長ログから、最も適した「収穫予定日（calculatedHarvestDate、形式: YYYY-MM-DD）」を論理的に推測・算定してください。
+
+【検討材料】：
+- sowingDate (播種日) からの経過日数
+- 各品種(variety)の標準的な生育期間（例：レタス約40日、バジル約35日、ミニトマト約75日、イチゴ約90日など）
+- stage (現在の段階。seedling, vegetative, flowering, harvest)
+- 直近のログにおける成長の記述やコメント（元気がない、花が咲いた、気温が低いため水やりを控える、大雨、日照不足など）および測定値。
+
+【植物リストデータ】:
+${JSON.stringify(plantsPayload, null, 2)}
+
+【特別条件】:
+今日の日付は ${todayStr} です。推論する収穫予測日は本日 (${todayStr}) 以降の日付にしてください。
+成長ログ等に「遅れ」「元気がない」「日照不足」「冷え込み」など生育トラブルがある場合は収穫予定日を少し後ろ倒し（例：3〜10日程度プラス）にし、
+「順調」「蕾がふくらんだ」「たくさん結実した」「収穫できそう」など良い変化がある場合は、適正または少し前倒しの日付として評価してください。
+
+各植物について「収穫予測日」と、その結論に至った科学的・園芸的アプローチに富む説明文（理由、日本語、30文字〜80文字程度、絵文字「🌱」「☀️」「⚠️」「🍎」を挿入して構いません）を生成してください。`;
+
+        const response = await geminiClient.models.generateContent({
+          model: "gemini-3.1-flash-lite",
+          contents: prompt,
+          config: {
+            systemInstruction: "あなたは家庭菜園やスマート水耕栽培の植物の成長動向を分析し、最適な収穫予定日を診断・更新するAIアドバイザーです。必ず指定した通りのJSON配列構造で正確に回答してください。",
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  plantId: { type: Type.STRING },
+                  calculatedHarvestDate: { type: Type.STRING, description: "収穫予想・算定予定日。YYYY-MM-DD形式" },
+                  reason: { type: Type.STRING, description: "なぜそのように推測したのか、成長ログに基づいた園芸アドバイスを含めた分かりやすい解説。日本語で1〜2文。" }
+                },
+                required: ["plantId", "calculatedHarvestDate", "reason"]
+              }
+            }
+          }
+        });
+
+        if (response.text) {
+          const parsed = JSON.parse(response.text.trim());
+          if (Array.isArray(parsed)) {
+            aiPredictions = parsed;
+            usedAi = true;
+          }
+        }
+      } catch (err: any) {
+        const errMsg = err?.message || String(err);
+        console.warn("Gemini harvest calculation error, falling back to local algorithm. Info:", errMsg);
+        if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("Quota") || errMsg.includes("limit")) {
+          geminiError = "quota_exceeded";
+        } else {
+          geminiError = "api_error";
+        }
+      }
+    }
+
+    // Local Algorithm Fallback if AI is unconfigured/depleted properties/errored
+    if (!usedAi) {
+      aiPredictions = activePlants.map(p => {
+        const logs = currentDb.growLogs
+          .filter(l => l.plantId === p.id)
+          .sort((a,b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime());
+        
+        const sowing = new Date(p.sowingDate);
+        let standardDays = 60; // default average
+        const varietyLower = (p.variety || "").toLowerCase();
+        
+        if (varietyLower.includes("トマト") || varietyLower.includes("tomato")) {
+          standardDays = 75;
+        } else if (varietyLower.includes("レタス") || varietyLower.includes("lettuce") || varietyLower.includes("葉") || varietyLower.includes("ほうれん草")) {
+          standardDays = 40;
+        } else if (varietyLower.includes("バジル") || varietyLower.includes("ハーブ") || varietyLower.includes("ミント")) {
+          standardDays = 35;
+        } else if (varietyLower.includes("イチゴ") || varietyLower.includes("strawberry")) {
+          standardDays = 90;
+        }
+
+        let adjustment = 0;
+        if (p.stage === "flowering") {
+          adjustment -= 5;
+        } else if (p.stage === "harvest") {
+          adjustment -= 15;
+        }
+
+        const logsText = logs.slice(0,5).map(l => (l.note || "")).join(" ");
+        if (logsText.includes("遅") || logsText.includes("元気がない") || logsText.includes("枯れ") || logsText.includes("冷")) {
+          adjustment += 7;
+        }
+        if (logsText.includes("順調") || logsText.includes("開花") || logsText.includes("実") || logsText.includes("おっきく") || logsText.includes("成長")) {
+          adjustment -= 3;
+        }
+
+        const finalDate = new Date(sowing.getTime() + (standardDays + adjustment) * 24 * 60 * 60 * 1000);
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        let returnDate = finalDate;
+        if (finalDate < today) {
+          returnDate = new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000); // 5 days from today if theoretically in past
+        }
+
+        return {
+          plantId: p.id,
+          calculatedHarvestDate: returnDate.toISOString().substring(0, 10),
+          reason: `標準適期(${standardDays}日間)を主軸に、現在の成長段階「${p.stage}」や、ログ(${logs.length}件)の記述傾向から自動算定した収穫予測日です。 🌱`
+        };
+      });
+    }
+
+    // Apply predictions to database and write back
+    currentDb.harvestPredictions = currentDb.harvestPredictions || [];
+    
+    for (const pred of aiPredictions) {
+      // 1. Update plant expectedHarvestDate directly
+      const pIdx = currentDb.plants.findIndex(p => p.id === pred.plantId);
+      if (pIdx !== -1) {
+        currentDb.plants[pIdx].expectedHarvestDate = pred.calculatedHarvestDate;
+        currentDb.plants[pIdx].updatedAt = new Date().toISOString();
+      }
+
+      // 2. Put prediction into our user-facing predictions table (overwrite or insert)
+      const existingIdx = currentDb.harvestPredictions.findIndex(hp => hp.plantId === pred.plantId);
+      const predictionRecord = {
+        id: "pred-" + Date.now() + "-" + Math.random().toString(36).substr(2, 5),
+        plantId: pred.plantId,
+        calculatedHarvestDate: pred.calculatedHarvestDate,
+        reason: pred.reason,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (existingIdx !== -1) {
+        currentDb.harvestPredictions[existingIdx] = predictionRecord;
+      } else {
+        currentDb.harvestPredictions.push(predictionRecord);
+      }
+    }
+
+    currentDb.lastHarvestCalculationAt = now.toISOString();
+    writeDB(currentDb);
+  }
+
+  // Reload the updated DB to reply with proper user scoping
+  const dbNow = readDB();
+  const predictions = dbNow.harvestPredictions ? dbNow.harvestPredictions.filter(hp => 
+    dbNow.plants.some(p => p.id === hp.plantId && p.userId === user.id && !p.archived && p.stage !== 'finished')
+  ) : [];
+
+  res.json({
+    predictions,
+    lastHarvestCalculationAt: dbNow.lastHarvestCalculationAt,
+    calculatedThisTurn: shouldCalculate,
+    geminiError
+  });
+});
+
 app.put("/api/auth/profile", (req, res) => {
   const user = getUserContext(req);
   const { name } = req.body;
@@ -430,9 +759,54 @@ app.put("/api/auth/profile", (req, res) => {
 app.get("/api/systems", (req, res) => {
   const user = getUserContext(req);
   const currentDb = readDB();
-  // Return systems owned by the user
-  const systems = currentDb.systems.filter(s => s.userId === user.id);
-  res.json(systems);
+  
+  // Find systems owned by the user OR where the user is a system member
+  const jointSystemIds = currentDb.systemMembers
+    .filter(sm => sm.userId === user.id)
+    .map(sm => sm.systemId);
+    
+  const allowedSystems = currentDb.systems.filter(s => s.userId === user.id || jointSystemIds.includes(s.id));
+  
+  const results = allowedSystems.map(sys => {
+    // Determine currentUserRole inside this system
+    const isOwner = sys.userId === user.id;
+    const dbRole = currentDb.systemMembers.find(sm => sm.systemId === sys.id && sm.userId === user.id)?.role;
+    const currentUserRole = isOwner ? "owner" : (dbRole || "member");
+
+    // Get owner details
+    const ownerUser = currentDb.users.find(usr => usr.id === sys.userId);
+    const ownerMemberArray = ownerUser ? [{
+      userId: ownerUser.id,
+      name: ownerUser.name,
+      email: ownerUser.email,
+      role: "owner",
+      joinedAt: sys.createdAt || new Date().toISOString()
+    }] : [];
+
+    // Get other members of this system
+    const otherMembers = currentDb.systemMembers
+      .filter(sm => sm.systemId === sys.id && sm.userId !== sys.userId)
+      .map(m => {
+        const u = currentDb.users.find(usr => usr.id === m.userId);
+        return {
+          userId: m.userId,
+          name: u ? u.name : "不明なユーザー",
+          email: u ? u.email : "",
+          role: m.role,
+          joinedAt: m.joinedAt
+        };
+      });
+
+    const members = [...ownerMemberArray, ...otherMembers];
+
+    return {
+      ...sys,
+      members,
+      currentUserRole
+    };
+  });
+
+  res.json(results);
 });
 
 app.post("/api/systems", (req, res) => {
@@ -514,7 +888,7 @@ app.delete("/api/systems/:id", (req, res) => {
   
   if (plantIds.length > 0) {
     currentDb.plants = currentDb.plants.filter(p => !plantIds.includes(p.id));
-    currentDb.plantMembers = currentDb.plantMembers.filter(m => !plantIds.includes(m.plantId));
+    currentDb.systemMembers = currentDb.systemMembers.filter(sm => sm.systemId !== id);
     currentDb.growLogs = currentDb.growLogs.filter(gl => !plantIds.includes(gl.plantId));
     currentDb.nutrientLogs = currentDb.nutrientLogs.filter(nl => !plantIds.includes(nl.plantId));
     currentDb.plantPhotos = currentDb.plantPhotos.filter(ph => !plantIds.includes(ph.plantId));
@@ -532,12 +906,20 @@ app.get("/api/plants", (req, res) => {
   const user = getUserContext(req);
   const currentDb = readDB();
   
-  // Find plants owned by the user OR where the user is a plant member (collaborative role)
-  const plantIdsAllowed = currentDb.plantMembers
-    .filter(pm => pm.userId === user.id)
-    .map(pm => pm.plantId);
+  // Find plants in systems owned by the user OR where the user is a system member
+  const systemIdsAllowed = currentDb.systemMembers
+    .filter(sm => sm.userId === user.id)
+    .map(sm => sm.systemId);
+
+  const systemIdsOwned = currentDb.systems
+    .filter(s => s.userId === user.id)
+    .map(s => s.id);
     
-  const allowedPlants = currentDb.plants.filter(p => p.userId === user.id || plantIdsAllowed.includes(p.id));
+  const allowedPlants = currentDb.plants.filter(p => 
+    p.userId === user.id || 
+    systemIdsOwned.includes(p.systemId) || 
+    systemIdsAllowed.includes(p.systemId)
+  );
   
   // Hydrate with latest stats (latest pH, EC, waterTemp) and systems details
   const results = allowedPlants.map(p => {
@@ -546,17 +928,18 @@ app.get("/api/plants", (req, res) => {
     const sorted = [...logs].sort((a,b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime());
     const latest = sorted[0] || null;
     
-    // Check if user is owner or member
-    const membership = currentDb.plantMembers.find(m => m.plantId === p.id && m.userId === user.id);
+    // Check if user is owner or member based on systemId
+    const membership = currentDb.systemMembers.find(m => m.systemId === p.systemId && m.userId === user.id);
+    const isSysOwner = sys && sys.userId === user.id;
     return {
       ...p,
-      systemName: sys ? sys.name : "不明な装置",
+      systemName: sys ? sys.name : "不明なプランター",
       systemType: sys ? sys.type : "Other",
       latestPh: latest ? latest.ph : null,
       latestEc: latest ? latest.ec : null,
       latestWaterTemp: latest ? latest.waterTemp : null,
       latestLogAt: latest ? latest.loggedAt : null,
-      role: membership ? membership.role : "owner"
+      role: isSysOwner ? "owner" : (membership ? membership.role : "member")
     };
   });
   
@@ -568,20 +951,22 @@ app.get("/api/plants/:id", (req, res) => {
   const { id } = req.params;
   const currentDb = readDB();
   
-  // Authorization check: User must be owner OR joint plant_member
-  const isMember = currentDb.plantMembers.some(pm => pm.plantId === id && pm.userId === user.id);
   const plant = currentDb.plants.find(p => p.id === id);
-  
   if (!plant) {
     return res.status(404).json({ error: "Plant not found" });
   }
+
+  const sys = currentDb.systems.find(s => s.id === plant.systemId);
+  const isSysOwner = sys && sys.userId === user.id;
+
+  // Authorization check: User must be owner OR joint systemMember of the plant's system OR plant creator
+  const isMember = currentDb.systemMembers.some(sm => sm.systemId === plant.systemId && sm.userId === user.id);
   
-  if (plant.userId !== user.id && !isMember) {
+  if (plant.userId !== user.id && !isMember && !isSysOwner) {
     return res.status(403).json({ error: "No permission to view this plant" });
   }
   
   // Hydrate detailed logs, photos, nutrient records, schedule proposals, messages
-  const sys = currentDb.systems.find(s => s.id === plant.systemId);
   const logs = currentDb.growLogs
     .filter(gl => gl.plantId === id)
     .map(l => {
@@ -610,8 +995,19 @@ app.get("/api/plants/:id", (req, res) => {
     .filter(cm => cm.plantId === id)
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     
-  const members = currentDb.plantMembers
-    .filter(pm => pm.plantId === id)
+  // Get owner details
+  const ownerUser = currentDb.users.find(usr => usr.id === sys?.userId);
+  const ownerMemberArray = ownerUser ? [{
+    userId: ownerUser.id,
+    name: ownerUser.name,
+    email: ownerUser.email,
+    role: "owner",
+    joinedAt: sys?.createdAt || new Date().toISOString()
+  }] : [];
+
+  // Get members of this planter (system), filtering out the owner to prevent duplication
+  const otherMembers = currentDb.systemMembers
+    .filter(sm => sm.systemId === plant.systemId && sm.userId !== sys?.userId)
     .map(m => {
       const u = currentDb.users.find(usr => usr.id === m.userId);
       return {
@@ -623,6 +1019,12 @@ app.get("/api/plants/:id", (req, res) => {
       };
     });
     
+  const members = [...ownerMemberArray, ...otherMembers];
+  
+  const isOwner = sys?.userId === user.id;
+  const dbRole = currentDb.systemMembers.find(sm => sm.systemId === plant.systemId && sm.userId === user.id)?.role;
+  const currentUserRole = isOwner ? "owner" : (dbRole || "member");
+  
   res.json({
     ...plant,
     system: sys ? { name: sys.name, type: sys.type, description: sys.description } : null,
@@ -632,7 +1034,7 @@ app.get("/api/plants/:id", (req, res) => {
     proposals,
     chatMessages,
     members,
-    currentUserRole: currentDb.plantMembers.find(pm => pm.plantId === id && pm.userId === user.id)?.role || "owner"
+    currentUserRole
   });
 });
 
@@ -646,7 +1048,7 @@ app.post("/api/plants", (req, res) => {
   const currentDb = readDB();
   const sysExists = currentDb.systems.some(s => s.id === systemId);
   if (!sysExists) {
-    return res.status(400).json({ error: "栽培装置が見つかりません" });
+    return res.status(400).json({ error: "プランターが見つかりません" });
   }
   
   const newPlant: Plant = {
@@ -662,17 +1064,7 @@ app.post("/api/plants", (req, res) => {
     updatedAt: new Date().toISOString()
   };
   
-  // Register automatic plant_member for owner
-  const ownMember: PlantMember = {
-    id: "m-" + Date.now(),
-    plantId: newPlant.id,
-    userId: user.id,
-    role: "owner",
-    joinedAt: new Date().toISOString()
-  };
-  
   currentDb.plants.push(newPlant);
-  currentDb.plantMembers.push(ownMember);
   writeDB(currentDb);
   res.status(201).json(newPlant);
 });
@@ -722,7 +1114,6 @@ app.delete("/api/plants/:id", (req, res) => {
   
   // Perform Cascade Deletes manually to simulate SQL constraint cleanly
   currentDb.plants.splice(plantIdx, 1);
-  currentDb.plantMembers = currentDb.plantMembers.filter(m => m.plantId !== id);
   currentDb.growLogs = currentDb.growLogs.filter(gl => gl.plantId !== id);
   currentDb.nutrientLogs = currentDb.nutrientLogs.filter(nl => nl.plantId !== id);
   currentDb.plantPhotos = currentDb.plantPhotos.filter(ph => ph.plantId !== id);
@@ -733,8 +1124,8 @@ app.delete("/api/plants/:id", (req, res) => {
   res.json({ success: true });
 });
 
-// Invite member to joint cultivate list
-app.post("/api/plants/:id/members", (req, res) => {
+// Invite member to joint cultivate list (Planter/System level)
+app.post("/api/systems/:id/members", (req, res) => {
   const user = getUserContext(req);
   const { id } = req.params;
   const { email } = req.body;
@@ -743,14 +1134,14 @@ app.post("/api/plants/:id/members", (req, res) => {
   }
   
   const currentDb = readDB();
-  const plant = currentDb.plants.find(p => p.id === id);
-  if (!plant) {
-    return res.status(404).json({ error: "Plant not found" });
+  const system = currentDb.systems.find(s => s.id === id);
+  if (!system) {
+    return res.status(404).json({ error: "Planter not found" });
   }
   
-  // Must be owner or existing member to invite
-  const requesterIsMember = currentDb.plantMembers.some(pm => pm.plantId === id && pm.userId === user.id);
-  if (plant.userId !== user.id && !requesterIsMember) {
+  // Must be owner or existing member of this planter to invite
+  const requesterIsMember = currentDb.systemMembers.some(sm => sm.systemId === id && sm.userId === user.id);
+  if (system.userId !== user.id && !requesterIsMember) {
     return res.status(403).json({ error: "共同栽培員の招待権限がありません" });
   }
   
@@ -767,26 +1158,194 @@ app.post("/api/plants/:id/members", (req, res) => {
     currentDb.users.push(targetUser);
   }
   
-  // Check if already is member
-  const alreadyMember = currentDb.plantMembers.some(pm => pm.plantId === id && pm.userId === targetUser!.id);
+  // Check if already is member of this planter
+  const alreadyMember = currentDb.systemMembers.some(sm => sm.systemId === id && sm.userId === targetUser!.id);
   if (alreadyMember) {
-    return res.status(440).json({ error: "このユーザーは既に共同栽培を行っています" });
+    return res.status(400).json({ error: "このユーザーは既に共同栽培を行っています" });
   }
   
-  const newMember: PlantMember = {
+  const newMember: SystemMember = {
     id: "m-" + Date.now(),
-    plantId: id,
+    systemId: id,
     userId: targetUser.id,
     role: "member",
     joinedAt: new Date().toISOString()
   };
   
-  currentDb.plantMembers.push(newMember);
+  currentDb.systemMembers.push(newMember);
   writeDB(currentDb);
   res.json({ success: true, memberUser: targetUser });
 });
 
-// Exit joint cultivation context or kick out member
+// Backward compatibility helper for plant level invitation (delegates to system/planter level)
+app.post("/api/plants/:id/members", (req, res) => {
+  const user = getUserContext(req);
+  const { id } = req.params;
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+  
+  const currentDb = readDB();
+  const plant = currentDb.plants.find(p => p.id === id);
+  if (!plant) {
+    return res.status(404).json({ error: "Plant not found" });
+  }
+  
+  // Delegate invitation to system
+  const system = currentDb.systems.find(s => s.id === plant.systemId);
+  if (!system) {
+    return res.status(404).json({ error: "Associated planter not found" });
+  }
+  
+  const requesterIsMember = currentDb.systemMembers.some(sm => sm.systemId === system.id && sm.userId === user.id);
+  if (system.userId !== user.id && !requesterIsMember) {
+    return res.status(403).json({ error: "共同栽培員の招待権限がありません" });
+  }
+  
+  let targetUser = currentDb.users.find(u => u.email.toLowerCase() === email.trim().toLowerCase());
+  if (!targetUser) {
+    const parts = email.split("@");
+    targetUser = {
+      id: "user-" + Date.now(),
+      email: email.trim().toLowerCase(),
+      name: parts[0] || "栽培仲間",
+      createdAt: new Date().toISOString()
+    };
+    currentDb.users.push(targetUser);
+  }
+  
+  const alreadyMember = currentDb.systemMembers.some(sm => sm.systemId === system.id && sm.userId === targetUser!.id);
+  if (alreadyMember) {
+    return res.status(400).json({ error: "このユーザーは既に共同栽培を行っています" });
+  }
+  
+  const newMember: SystemMember = {
+    id: "m-" + Date.now(),
+    systemId: system.id,
+    userId: targetUser.id,
+    role: "member",
+    joinedAt: new Date().toISOString()
+  };
+  
+  currentDb.systemMembers.push(newMember);
+  writeDB(currentDb);
+  res.json({ success: true, memberUser: targetUser });
+});
+
+// Evict or leave planter group
+app.delete("/api/systems/:id/members/:userId", (req, res) => {
+  const user = getUserContext(req);
+  const { id, userId } = req.params;
+  
+  const currentDb = readDB();
+  const system = currentDb.systems.find(s => s.id === id);
+  if (!system) {
+    return res.status(404).json({ error: "Planter not found" });
+  }
+  
+  // Only owner can kick, but anyone can leave by themselves
+  if (system.userId !== user.id && user.id !== userId) {
+    return res.status(403).json({ error: "メンバー退出・解任操作を行う権限がありません" });
+  }
+  
+  if (system.userId === userId) {
+    return res.status(400).json({ error: "オーナーは退出できません。プランター環境そのものを削除してください。" });
+  }
+  
+  const idx = currentDb.systemMembers.findIndex(sm => sm.systemId === id && sm.userId === userId);
+  if (idx !== -1) {
+    currentDb.systemMembers.splice(idx, 1);
+    writeDB(currentDb);
+    return res.json({ success: true });
+  }
+  
+  res.status(404).json({ error: "Member not found" });
+});
+
+
+// プランター単体での共同栽培メンバーの招待
+app.post("/api/systems/:id/members", (req, res) => {
+  const user = getUserContext(req);
+  const { id } = req.params; // system id
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "メールアドレスを入力してください" });
+  }
+
+  const currentDb = readDB();
+  const system = currentDb.systems.find(s => s.id === id);
+  if (!system) {
+    return res.status(404).json({ error: "プランターが見つかりません" });
+  }
+
+  const isOwner = system.userId === user.id;
+  const isMember = currentDb.systemMembers.some(sm => sm.systemId === id && sm.userId === user.id);
+  if (!isOwner && !isMember) {
+    return res.status(403).json({ error: "このプランターに招待する権限がありません" });
+  }
+
+  const targetUser = currentDb.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  if (!targetUser) {
+    return res.status(404).json({ error: "登録されていないユーザーです。相手がこのアプリに一度ログインしている必要があります。" });
+  }
+
+  if (targetUser.id === system.userId) {
+    return res.status(400).json({ error: "代表オーナー自身を追加することはできません" });
+  }
+
+  const alreadyMember = currentDb.systemMembers.some(sm => sm.systemId === id && sm.userId === targetUser.id);
+  if (alreadyMember) {
+    return res.status(400).json({ error: "このユーザーは既に共同栽培メンバーです" });
+  }
+
+  const newMember = {
+    id: "sm-" + Date.now() + Math.random().toString(36).substr(2, 5),
+    systemId: id,
+    userId: targetUser.id,
+    role: "member" as const,
+    joinedAt: new Date().toISOString()
+  };
+
+  currentDb.systemMembers.push(newMember);
+  writeDB(currentDb);
+
+  res.json({ success: true, member: { userId: targetUser.id, name: targetUser.name, email: targetUser.email, role: "member" } });
+});
+
+// プランター単体での共同栽培メンバーの解任・辞退
+app.delete("/api/systems/:id/members/:userId", (req, res) => {
+  const user = getUserContext(req);
+  const { id, userId } = req.params;
+
+  const currentDb = readDB();
+  const system = currentDb.systems.find(s => s.id === id);
+  if (!system) {
+    return res.status(404).json({ error: "プランターが見つかりません" });
+  }
+
+  const isOwner = system.userId === user.id;
+  const isMyself = userId === user.id;
+
+  if (!isOwner && !isMyself) {
+    return res.status(403).json({ error: "メンバー退出・解任操作を行う権限がありません" });
+  }
+
+  if (system.userId === userId) {
+    return res.status(400).json({ error: "オーナーは退出できません。プランター環境そのものを削除してください。" });
+  }
+
+  const idx = currentDb.systemMembers.findIndex(sm => sm.systemId === id && sm.userId === userId);
+  if (idx !== -1) {
+    currentDb.systemMembers.splice(idx, 1);
+    writeDB(currentDb);
+    return res.json({ success: true });
+  }
+
+  res.status(404).json({ error: "栽培メンバーが見つかりません" });
+});
+
+// Backward compatibility helper for plant level eviction
 app.delete("/api/plants/:id/members/:userId", (req, res) => {
   const user = getUserContext(req);
   const { id, userId } = req.params;
@@ -797,23 +1356,133 @@ app.delete("/api/plants/:id/members/:userId", (req, res) => {
     return res.status(404).json({ error: "Plant not found" });
   }
   
-  // Only owner can kick, but anyone can leave by themselves
-  if (plant.userId !== user.id && user.id !== userId) {
+  const system = currentDb.systems.find(s => s.id === plant.systemId);
+  if (!system) {
+    return res.status(404).json({ error: "Associated planter not found" });
+  }
+  
+  if (system.userId !== user.id && user.id !== userId) {
     return res.status(403).json({ error: "メンバー退出・解任操作を行う権限がありません" });
   }
   
-  if (plant.userId === userId) {
-    return res.status(400).json({ error: "オーナーは退出できません。植物そのものを削除してください。" });
+  if (system.userId === userId) {
+    return res.status(400).json({ error: "オーナーは退出できません。" });
   }
   
-  const idx = currentDb.plantMembers.findIndex(pm => pm.plantId === id && pm.userId === userId);
+  const idx = currentDb.systemMembers.findIndex(sm => sm.systemId === system.id && sm.userId === userId);
   if (idx !== -1) {
-    currentDb.plantMembers.splice(idx, 1);
+    currentDb.systemMembers.splice(idx, 1);
     writeDB(currentDb);
     return res.json({ success: true });
   }
   
   res.status(404).json({ error: "Member not found" });
+});
+
+
+// 所有者の変更 (Transfer Ownership) for System
+app.put("/api/systems/:id/transfer-owner", (req, res) => {
+  const user = getUserContext(req);
+  const { id } = req.params;
+  const { newOwnerUserId } = req.body;
+  if (!newOwnerUserId) {
+    return res.status(400).json({ error: "新しい代表者の指定が必要です" });
+  }
+
+  const currentDb = readDB();
+  const system = currentDb.systems.find(s => s.id === id);
+  if (!system) {
+    return res.status(404).json({ error: "プランターが見つかりません" });
+  }
+
+  if (system.userId !== user.id) {
+    return res.status(403).json({ error: "代表者を変更できるのは現在のオーナーのみです" });
+  }
+
+  if (user.id === newOwnerUserId) {
+    return res.status(400).json({ error: "自分自身に譲渡することはできません" });
+  }
+
+  const targetUser = currentDb.users.find(u => u.id === newOwnerUserId);
+  if (!targetUser) {
+    return res.status(404).json({ error: "指定されたユーザーが見つかりません" });
+  }
+
+  system.userId = newOwnerUserId;
+  system.updatedAt = new Date().toISOString();
+
+  // Remove the new owner from shared systemMembers
+  currentDb.systemMembers = currentDb.systemMembers.filter(sm => !(sm.systemId === id && sm.userId === newOwnerUserId));
+
+  // Downgrade old owner to member
+  const oldOwnerIsMember = currentDb.systemMembers.some(sm => sm.systemId === id && sm.userId === user.id);
+  if (!oldOwnerIsMember) {
+    currentDb.systemMembers.push({
+      id: "m-" + Date.now(),
+      systemId: id,
+      userId: user.id,
+      role: "member",
+      joinedAt: new Date().toISOString()
+    });
+  }
+
+  writeDB(currentDb);
+  res.json({ success: true, newOwner: targetUser });
+});
+
+// 所有者の変更 (Transfer Ownership) for Plant wrapper
+app.put("/api/plants/:id/transfer-owner", (req, res) => {
+  const user = getUserContext(req);
+  const { id } = req.params;
+  const { newOwnerUserId } = req.body;
+  if (!newOwnerUserId) {
+    return res.status(400).json({ error: "新しい代表者の指定が必要です" });
+  }
+
+  const currentDb = readDB();
+  const plant = currentDb.plants.find(p => p.id === id);
+  if (!plant) {
+    return res.status(404).json({ error: "植物が見つかりません" });
+  }
+
+  const system = currentDb.systems.find(s => s.id === plant.systemId);
+  if (!system) {
+    return res.status(404).json({ error: "プランターが見つかりません" });
+  }
+
+  if (system.userId !== user.id) {
+    return res.status(403).json({ error: "代表者を変更できるのは現在のオーナーのみです" });
+  }
+
+  if (user.id === newOwnerUserId) {
+    return res.status(400).json({ error: "自分自身に譲渡することはできません" });
+  }
+
+  const targetUser = currentDb.users.find(u => u.id === newOwnerUserId);
+  if (!targetUser) {
+    return res.status(404).json({ error: "指定されたユーザーが見つかりません" });
+  }
+
+  system.userId = newOwnerUserId;
+  system.updatedAt = new Date().toISOString();
+
+  // Remove the new owner from shared systemMembers
+  currentDb.systemMembers = currentDb.systemMembers.filter(sm => !(sm.systemId === system.id && sm.userId === newOwnerUserId));
+
+  // Downgrade old owner to member
+  const oldOwnerIsMember = currentDb.systemMembers.some(sm => sm.systemId === system.id && sm.userId === user.id);
+  if (!oldOwnerIsMember) {
+    currentDb.systemMembers.push({
+      id: "m-" + Date.now(),
+      systemId: system.id,
+      userId: user.id,
+      role: "member",
+      joinedAt: new Date().toISOString()
+    });
+  }
+
+  writeDB(currentDb);
+  res.json({ success: true, newOwner: targetUser });
 });
 
 
@@ -1031,19 +1700,24 @@ app.get("/api/proposals", (req, res) => {
   const user = getUserContext(req);
   const currentDb = readDB();
   
-  // Search plant memberships for joint accounts
-  const jointPlantIds = currentDb.plantMembers
-    .filter(pm => pm.userId === user.id)
-    .map(pm => pm.plantId);
+  // Search planter memberships for joint accounts
+  const jointSystemIds = currentDb.systemMembers
+    .filter(sm => sm.userId === user.id)
+    .map(sm => sm.systemId);
     
-  const userPlantIds = currentDb.plants
-    .filter(p => p.userId === user.id)
+  const userSystemIds = currentDb.systems
+    .filter(s => s.userId === user.id)
+    .map(s => s.id);
+    
+  const allowedSystemIds = Array.from(new Set([...jointSystemIds, ...userSystemIds]));
+  
+  // Find plants belonging to authorized systems
+  const allowedPlantIds = currentDb.plants
+    .filter(p => allowedSystemIds.includes(p.systemId))
     .map(p => p.id);
-    
-  const allowedIds = Array.from(new Set([...jointPlantIds, ...userPlantIds]));
   
   // Find proposals for user belonging plants OR marked as requested for that userID
-  const list = currentDb.scheduleProposals.filter(p => allowedIds.includes(p.plantId) || p.userId === user.id);
+  const list = currentDb.scheduleProposals.filter(p => allowedPlantIds.includes(p.plantId) || p.userId === user.id);
   
   // Decorate with hydrated plant detailed name
   const decoratedList = list.map(item => {
@@ -1123,7 +1797,7 @@ app.post("/api/ai/chat", async (req, res) => {
 - 育成ステージ: ${plant.stage} (苗期: seedling, 栄養成長期: vegetative, 開花期: flowering, 収穫期: harvest, 栽培終了: finished)
 - 播種日(種まき): ${plant.sowingDate}
 - 予想収穫日: ${plant.expectedHarvestDate}
-- 栽培環境・装置: ${sys ? sys.name : "その他"} (形式: ${sys ? sys.type : "Other"})
+- 栽培環境・プランター: ${sys ? sys.name : "その他"} (形式: ${sys ? sys.type : "Other"})
 - 地域・気候パラメーター: ${userLocation || "未設定 (特に長野など寒暖差の大きい地域、日本の微細気候に対応)"}
 
 【最近5回分の観察・記録ログ】
@@ -1133,8 +1807,8 @@ ${logSummary || "（まだログはありません。水耕ならpH 5.8~6.2、EC
 ${fertSummary || "（まだ肥料 of 添加記録はありません。水耕用のハイポニカやOATハウス等の液肥配合、土耕用の固形化成肥料、有機堆肥、マルチングなどの各種栄養補正を推奨）"}
 
 【アドバイス方針】
-1. 装置タイプが水耕の場合（DWC/NFT/Kratky/Ebb_Flow）：日本の定番液肥「ハイポニカ」「OATハウス（旧大塚ハウス）」「微粉ハイポネックス」などの配合設計や、pH / EC / 水温・根腐れの的確なアドバイスを行います。
-2. 装置タイプが土耕・プランター・地植え畑の場合（Soil_Planter / Backyard_Field / Other）：水やり頻度（土が乾いたらたっぷり鉢底から流れるまで）、プランター特有の熱対策・底面潅水、追肥（マグァンプKやマイガーデン等の固形化成肥料や液体肥料の土壌散布）、芽かき（わき芽かき）、摘心、土寄せ、マルチング等、それぞれの特性に基づいた実直で丁寧なアドバイスをします。
+1. プランター種別が水耕の場合（DWC/NFT/Kratky/Ebb_Flow）：日本の定番液肥「ハイポニカ」「OATハウス（旧大塚ハウス）」「微粉ハイポネックス」などの配合設計や、pH / EC / 水温・根腐れの的確なアドバイスを行います。
+2. プランター種別が土耕・地植え畑の場合（Soil_Planter / Backyard_Field / Other）：水やり頻度（土が乾いたらたっぷり鉢底から流れるまで）、プランター特有の熱対策・底面潅水、追肥（マグァンプKやマイガーデン等の固形化成肥料や液体肥料の土壌散布）、芽かき（わき芽かき）、摘心、土寄せ、マルチング等、それぞれの特性に基づいた実直で丁寧なアドバイスをします。
 3. ユーザーが指定した地域（${userLocation || "日本"}）の現在の季節要因（寒冷期の地温、梅雨期の過湿、夏の日射・水温急上昇など）を十分に考慮します。
 4. なぜ葉が黄色くなるのか、成長が遅いのか、病害虫の疑いはないか、植物生理学に基づきつつも初心者へ分かりやすく丁寧に説明してください。
 5. 回答は過剰な装飾をせず、親身でスマートなマークダウン形式の日本語で回答します。
@@ -1176,7 +1850,7 @@ ${fertSummary || "（まだ肥料 of 添加記録はありません。水耕用�
       ];
       
       const aiResponse = await geminiClient.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-3.1-flash-lite",
         contents: contentsPayload,
         config: {
           systemInstruction: currentSysPrompt,
@@ -1187,21 +1861,25 @@ ${fertSummary || "（まだ肥料 of 添加記録はありません。水耕用�
       
       assistantText = aiResponse.text || "申し訳ありません。AIからの返答を生成できませんでした。";
       
-    } catch (aiError) {
-      console.error("Gemini Content Generation Error:", aiError);
+    } catch (aiError: any) {
+      const errMsg = aiError?.message || String(aiError);
+      console.warn("Gemini Content Generation Warning:", errMsg);
+      let errorAlert = "";
+      if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("Quota") || errMsg.includes("limit")) {
+        errorAlert = "【⚠️ Gemini API利用枠上限超過 (429 Quota Exceeded)】現在リクエスト枠を超過しているため、内蔵のローカル園芸知識AI判定エンジンによりアドバイスを提供いたします。\n\n";
+      } else {
+        errorAlert = "【⚠️ Gemini API通信エラー (オフラインバックアップ)】現在一時的に接続が休止されているため、内蔵のローカル園芸知識AI判定エンジンによりアドバイスを提供いたします。\n\n";
+      }
       const isSoil = sys && (sys.type === "Soil_Planter" || sys.type === "Backyard_Field");
       if (isSoil) {
-        assistantText = `【オフライン診断モード】Gemini APIを呼び出す際にエラーが発生しました。
-プランター/菜園栽培のアドバイス例として：
+        assistantText = `${errorAlert}【お世話のアドバイス（土耕・プランター）】🌱
 - 土耕・プランター栽培では、土の乾湿リズム（乾いたらたっぷり潅水）を意識してください。
 - 脇芽かき（pruning）や摘心をすることで、風通しを高め病害虫を予防できます。
-(エラー詳細: ${aiError instanceof Error ? aiError.message : aiError})`;
+- 日当たりの確保や、施肥の間隔に注意しましょう。`;
       } else {
-        assistantText = `【オフライン診断モード】Gemini APIを呼び出す際にエラーが発生しました。
-水耕栽培のアドバイス例として：
-- pHが${recentLogs[0]?.ph || "記録なし"}と表示されていますが、通常は5.8〜6.5が適正です。
-- 根腐れのケア、液肥の2段階希釈などの対応をしてください。
-(エラー詳細: ${aiError instanceof Error ? aiError.message : aiError})`;
+        assistantText = `${errorAlert}【お世話のアドバイス（水耕栽培）】💧
+- pHが${recentLogs[0]?.ph || "記録なし"}と表示されていますが、通常は 5.8〜6.5 が適正域です。
+- 液肥の2段階希釈やお水の水換え時期を考慮に入れ、根腐れを予防しましょう。`;
       }
     }
   } else {
@@ -1279,7 +1957,7 @@ app.post("/api/ai/propose-schedule", async (req, res) => {
 - 現在の育成ステージ: ${plant.stage}
 - 種まき日: ${plant.sowingDate}
 - 予想収穫日: ${plant.expectedHarvestDate}
-- 装置種類: ${sys ? sys.type : "DWC"}
+- プランター・環境タイプ: ${sys ? sys.type : "DWC"}
 - 地域気候情報: ${userLocation || "長野県（日本の典型的な気候）"}
 - 計算の基準日(本日): ${new Date().toISOString().split("T")[0]}
 `;
@@ -1289,7 +1967,7 @@ app.post("/api/ai/propose-schedule", async (req, res) => {
   if (geminiClient) {
     try {
       const response = await geminiClient.models.generateContent({
-        model: "gemini-3.5-flash",
+        model: "gemini-3.1-flash-lite",
         contents: prompt,
         config: {
           responseMimeType: "application/json"
@@ -1298,8 +1976,8 @@ app.post("/api/ai/propose-schedule", async (req, res) => {
       
       const cleanText = (response.text || "").trim();
       proposalsSeed = JSON.parse(cleanText);
-    } catch (apiErr) {
-      console.error("Failed to generate propose schedules with Gemini. Using high-precision local fallback computation:", apiErr);
+    } catch (apiErr: any) {
+      console.warn("Failed to generate propose schedules with Gemini. Using high-precision local fallback computation:", apiErr?.message || apiErr);
       proposalsSeed = generateFallbackProposals(plant, sys, userLocation);
     }
   } else {
@@ -1371,14 +2049,14 @@ app.get("/api/calendar/export", (req, res) => {
   const currentDb = readDB();
   
   // Hydrate only approved proposals
-  const userPlantIds = currentDb.plants.filter(p => p.userId === user.id).map(p => p.id);
-  const allowedIds = currentDb.plantMembers
-    .filter(pm => pm.userId === user.id)
-    .map(pm => pm.plantId)
-    .concat(userPlantIds);
+  const userSystemIds = currentDb.systems.filter(s => s.userId === user.id).map(s => s.id);
+  const jointSystemIds = currentDb.systemMembers.filter(sm => sm.userId === user.id).map(sm => sm.systemId);
+  const allowedSystemIds = Array.from(new Set([...userSystemIds, ...jointSystemIds]));
+  
+  const allowedPlantIds = currentDb.plants.filter(p => allowedSystemIds.includes(p.systemId)).map(p => p.id);
     
   const approvedProposals = currentDb.scheduleProposals.filter(
-    sp => allowedIds.includes(sp.plantId) && sp.status === "approved"
+    sp => allowedPlantIds.includes(sp.plantId) && sp.status === "approved"
   );
   
   // Construct dynamic iCal format according to calendar guidelines

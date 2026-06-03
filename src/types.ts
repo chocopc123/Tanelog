@@ -37,9 +37,9 @@ export interface Plant {
 
 export type MemberRole = 'owner' | 'member';
 
-export interface PlantMember {
+export interface SystemMember {
   id: string;
-  plantId: string;
+  systemId: string;
   userId: string;
   role: MemberRole;
   joinedAt: string;
@@ -110,3 +110,12 @@ export interface DashboardStats {
   todayTasks: ScheduleProposal[];
   pendingCount: number;
 }
+
+export interface HarvestPrediction {
+  id: string;
+  plantId: string;
+  calculatedHarvestDate: string;
+  reason: string;
+  updatedAt: string;
+}
+
