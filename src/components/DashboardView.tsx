@@ -90,8 +90,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setTimeout(() => setToastMsg(""), 4000);
   };
 
-  const activePlantIds = plants.filter(p => !p.archived).map(p => p.id);
-  const activePlants = plants.filter(p => !p.archived);
+  const activePlantIds = plants.filter(p => !p.archived && !systems.find(sys => sys.id === p.systemId)?.suspended).map(p => p.id);
+  const activePlants = plants.filter(p => !p.archived && !systems.find(sys => sys.id === p.systemId)?.suspended);
 
   // Filter pending proposals for this user
   const pendingProposals = proposals.filter(p => p.status === "pending" && activePlantIds.includes(p.plantId));
@@ -290,13 +290,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
 
-        {systems.length === 0 ? (
+        {systems.filter(sys => !sys.suspended).length === 0 ? (
           <div className="bg-slate-50 rounded-2xl border border-dashed border-slate-200 p-8 text-center text-slate-500">
-            プランター鉢や栽培環境が登録されていません。まずはプランターや菜園、栽培槽を登録しましょう！
+            稼働中のプランターや栽培環境がありません。まずはプランターを追加するか稼働状態に設定してください！
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {systems.map((sys) => {
+            {systems.filter(sys => !sys.suspended).map((sys) => {
               // Plants in this system
               const sysPlants = plants.filter(p => p.systemId === sys.id && !p.archived);
 
