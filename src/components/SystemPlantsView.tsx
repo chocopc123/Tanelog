@@ -1238,12 +1238,20 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
           </div>
 
           {/* TODAY RECOMENDED TASKS WIDGET */}
-          {selectedPlant.proposals && selectedPlant.proposals.filter((p: any) => p.status === "approved" || p.status === "pending").length > 0 && (
+          {selectedPlant.proposals && selectedPlant.proposals.filter((p: any) => {
+            const isApproved = p.status === "approved" || p.status === "pending";
+            const todayStr = new Date().toISOString().split("T")[0];
+            return isApproved && p.proposedDate === todayStr;
+          }).length > 0 && (
             <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-2xl p-5 space-y-4 font-sans shadow-xs">
               <div className="flex items-center justify-between">
                 <h3 className="text-xs font-extrabold text-emerald-800 uppercase tracking-wider flex items-center gap-1.5 mt-0">
                   <CheckCircle className="w-4.5 h-4.5 text-emerald-600" />
-                  本日の推奨お世話タスク ({selectedPlant.proposals.filter((p: any) => p.status === "approved" || p.status === "pending").length} 件)
+                  本日の推奨お世話タスク ({selectedPlant.proposals.filter((p: any) => {
+                    const isApproved = p.status === "approved" || p.status === "pending";
+                    const todayStr = new Date().toISOString().split("T")[0];
+                    return isApproved && p.proposedDate === todayStr;
+                  }).length} 件)
                 </h3>
                 <span className="text-[10px] text-emerald-600 bg-white border border-emerald-100 font-bold px-2 py-0.5 rounded-full shadow-xs">
                   AI連携
@@ -1251,7 +1259,11 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {selectedPlant.proposals
-                  .filter((p: any) => p.status === "approved" || p.status === "pending")
+                  .filter((p: any) => {
+                    const isApproved = p.status === "approved" || p.status === "pending";
+                    const todayStr = new Date().toISOString().split("T")[0];
+                    return isApproved && p.proposedDate === todayStr;
+                  })
                   .map((task: any, index: number) => {
                     let taskBadge = "bg-purple-100 text-purple-800 text-[10px]";
                     let taskTitle = "お世話タスク";
@@ -1285,15 +1297,6 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                           </p>
                         </div>
                         <div className="flex gap-2 justify-end pt-2 border-t border-slate-50">
-                          {task.status === "pending" && (
-                            <button
-                              type="button"
-                              onClick={() => onApproveProposal(task.id, "approved")}
-                              className="px-2.5 py-1 text-[10px] font-bold text-slate-500 hover:text-emerald-700 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-200 rounded-lg cursor-pointer transition-all"
-                            >
-                              カレンダーに承認
-                            </button>
-                          )}
                           <button
                             type="button"
                             onClick={() => handleCompleteTask(task)}

@@ -1735,7 +1735,7 @@ app.get("/api/proposals", (req, res) => {
 app.put("/api/proposals/:id", (req, res) => {
   const user = getUserContext(req);
   const { id } = req.params;
-  const { status, proposedDate } = req.body; // approved / dismissed / pending
+  const { status, proposedDate, type, note } = req.body; // approved / dismissed / pending
   
   const currentDb = readDB();
   const idx = currentDb.scheduleProposals.findIndex(sp => sp.id === id);
@@ -1745,6 +1745,8 @@ app.put("/api/proposals/:id", (req, res) => {
   
   if (status) currentDb.scheduleProposals[idx].status = status;
   if (proposedDate) currentDb.scheduleProposals[idx].proposedDate = proposedDate;
+  if (type) currentDb.scheduleProposals[idx].type = type;
+  if (note !== undefined) currentDb.scheduleProposals[idx].note = note;
   
   writeDB(currentDb);
   res.json(currentDb.scheduleProposals[idx]);

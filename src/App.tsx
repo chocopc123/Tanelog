@@ -516,7 +516,7 @@ export default function App() {
   };
 
   // Schedule Proposal evaluation
-  const handleApproveProposal = async (id: string, status: ProposalStatus, approvedDate?: string) => {
+  const handleApproveProposal = async (id: string, status: ProposalStatus, approvedDate?: string, type?: string, note?: string) => {
     try {
       const res = await fetch(`/api/proposals/${id}`, {
         method: "PUT",
@@ -524,7 +524,7 @@ export default function App() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ status, proposedDate: approvedDate })
+        body: JSON.stringify({ status, proposedDate: approvedDate, type, note })
       });
       if (res.ok) {
         await syncDatabase();

@@ -1,12 +1,12 @@
 import React, { useState } from "react";
 import { ScheduleProposal, ProposalStatus } from "../types";
 import { 
-  Calendar, ChevronLeft, ChevronRight, Download, Check, X, Clock, HelpCircle, AlertCircle
+  Calendar, ChevronLeft, ChevronRight, Download, Check, X, Clock, HelpCircle, AlertCircle, Pencil
 } from "lucide-react";
 
 interface CalendarViewProps {
   proposals: any[]; // Hydrated proposals with plantName
-  onApproveProposal: (id: string, status: ProposalStatus) => void;
+  onApproveProposal: (id: string, status: ProposalStatus, approvedDate?: string, type?: string, note?: string) => void;
   userToken: string;
   plants: any[];
 }
@@ -19,7 +19,26 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 }) => {
   // Current calendar date state
   const [currentDate, setCurrentDate] = useState<Date>(new Date("2026-06-03")); // Seed matching current local time metadata
-  const [filter, setFilter] = useState<"all" | "approved" | "pending" | "completed">("all");
+  const [filter, setFilter] = useState<"all" | "approved" | "completed">("all");
+
+  // Edit states for proposals
+  const [editingProposal, setEditingProposal] = useState<any | null>(null);
+  const [editType, setEditType] = useState<string>("");
+  const [editDate, setEditDate] = useState<string>("");
+  const [editNote, setEditNote] = useState<string>("");
+
+  const startEditingProposal = (proposal: any) => {
+    setEditingProposal(proposal);
+    setEditType(proposal.type);
+    setEditDate(proposal.proposedDate);
+    setEditNote(proposal.note);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingProposal) return;
+    await onApproveProposal(editingProposal.id, editingProposal.status, editDate, editType, editNote);
+    setEditingProposal(null);
+  };
 
   const activePlantIds = (plants || []).filter(p => !p.archived).map(p => p.id);
   const activeProposals = proposals.filter(p => activePlantIds.includes(p.plantId));
@@ -50,9 +69,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     calendarDays.push(new Date(year, month, day));
   }
 
+  const formatDateToYYYYMMDD = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    return `${y}-${m}-${d}`;
+  };
+
   // Group events by day
   const getEventsForDate = (date: Date) => {
-    const dStr = date.toISOString().split("T")[0];
+    const dStr = formatDateToYYYYMMDD(date);
     return activeProposals.filter(p => {
       // Format match of proposal YYYY-MM-DD
       const propDStr = p.proposedDate;
@@ -74,38 +100,37 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Colors mapping
   const getTypeStyles = (type: string, status: string) => {
-    const isApproved = status === "approved" || status === "completed";
     if (type === "nutrient") {
       return {
-        bg: isApproved ? "bg-indigo-50 border-indigo-100" : "bg-indigo-50/40 border-dashed border-indigo-200",
+        bg: "bg-indigo-50 border border-indigo-100",
         text: "text-indigo-800",
         badge: "bg-indigo-500",
         label: "🧪 施肥"
       };
     } else if (type === "water_change") {
       return {
-        bg: isApproved ? "bg-amber-50 border-amber-100" : "bg-amber-50/40 border-dashed border-amber-200",
+        bg: "bg-amber-50 border border-amber-100",
         text: "text-amber-800",
         badge: "bg-amber-500",
         label: "💧 水換"
       };
     } else if (type === "ph_check") {
       return {
-        bg: isApproved ? "bg-teal-50 border-teal-100" : "bg-teal-50/40 border-dashed border-teal-200",
+        bg: "bg-teal-50 border border-teal-100",
         text: "text-teal-800",
         badge: "bg-teal-500",
         label: "📊 測定"
       };
     } else if (type === "harvest") {
       return {
-        bg: isApproved ? "bg-emerald-50 border-emerald-100" : "bg-emerald-50/40 border-dashed border-emerald-200",
+        bg: "bg-emerald-50 border border-emerald-100",
         text: "text-emerald-800",
         badge: "bg-emerald-600",
         label: "✂️ 収穫"
       };
     }
     return {
-      bg: "bg-slate-100 border-slate-200",
+      bg: "bg-slate-100 border border-slate-200",
       text: "text-slate-700",
       badge: "bg-slate-400",
       label: "🌱 タスク"
@@ -154,13 +179,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             onClick={() => setFilter("approved")}
             className={`px-3 py-1.5 rounded-lg font-bold transition-all ${filter === "approved" ? "bg-white text-emerald-700 shadow-xs" : "text-slate-500 hover:text-slate-700"}`}
           >
-            承認済み
-          </button>
-          <button 
-            onClick={() => setFilter("pending")}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all ${filter === "pending" ? "bg-white text-amber-700 shadow-xs" : "text-slate-500 hover:text-slate-700"}`}
-          >
-            未承認のみ
+            実施予定
           </button>
           <button 
             onClick={() => setFilter("completed")}
@@ -176,7 +195,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-amber-500 block"></span> 💧 全水換え</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-teal-500 block"></span> 📊 水質測定</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-emerald-600 block"></span> ✂️ 推奨収穫</span>
-          <span className="flex items-center gap-1.5 ml-2 font-bold text-amber-600"><Clock className="w-3 h-3" /> 点線：AIからの未承認提案</span>
         </div>
       </div>
 
@@ -224,7 +242,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               }
 
               const events = getEventsForDate(day);
-              const isToday = new Date().toISOString().split("T")[0] === day.toISOString().split("T")[0];
+              const isToday = formatDateToYYYYMMDD(new Date()) === formatDateToYYYYMMDD(day);
 
               return (
                 <div 
@@ -288,29 +306,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             ) : (
               listFilteredProposals.map((item, idx) => {
                 const styles = getTypeStyles(item.type, item.status);
-                const isPending = item.status === "pending";
+                const isApproved = item.status === "approved" || item.status === "pending"; // treat pending as directly approved
 
                 return (
                   <div 
                     key={item.id || idx} 
-                    className={`p-3.5 rounded-xl border flex flex-col justify-between gap-2 transition-all ${
-                      isPending 
-                        ? "bg-amber-50/20 border-dashed border-amber-200" 
-                        : "bg-slate-50/50 border-slate-100"
-                    }`}
+                    className="p-3.5 rounded-xl border flex flex-col justify-between gap-2 transition-all bg-slate-50/50 border-slate-100"
                   >
                     <div className="space-y-1.5">
                       <div className="flex justify-between items-start gap-1">
                         <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
                           item.status === "completed" 
                             ? "bg-blue-100 text-blue-800 font-extrabold" 
-                            : item.status === "approved" 
+                            : isApproved 
                             ? "bg-emerald-100 text-emerald-800" 
-                            : item.status === "dismissed" 
-                            ? "bg-slate-100 text-slate-500" 
-                            : "bg-amber-100 text-amber-800"
+                            : "bg-slate-100 text-slate-500"
                         }`}>
-                          {item.status === "completed" ? "実施完了" : item.status === "approved" ? "承認済" : item.status === "dismissed" ? "却下済" : "未承認"}
+                          {item.status === "completed" ? "実施完了" : isApproved ? "実施予定" : "削除済/却下済"}
                         </span>
                         <span className="text-[9px] font-mono text-slate-400">予定日: {item.proposedDate}</span>
                       </div>
@@ -322,30 +334,25 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                       <p className={`text-[11px] text-slate-600 leading-relaxed font-sans ${item.status === 'completed' ? 'line-through text-slate-400 opacity-60' : ''}`}>{item.note}</p>
                     </div>
 
-                    {item.status === "approved" && (
+                    {isApproved && (
                       <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100/40">
+                        <button 
+                          onClick={() => startEditingProposal(item)}
+                          className="px-2.5 py-1 text-[10px] font-bold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg flex items-center gap-0.5 transition-colors cursor-pointer mr-auto"
+                        >
+                          <Pencil className="w-3 h-3" /> 編集
+                        </button>
+                        <button 
+                          onClick={() => onApproveProposal(item.id, "dismissed")}
+                          className="px-2.5 py-1 text-[10px] font-bold text-rose-600 bg-rose-50/55 hover:bg-rose-50 border border-rose-100 rounded-lg flex items-center gap-0.5 transition-colors cursor-pointer"
+                        >
+                          <X className="w-3 h-3" /> 予定を消去
+                        </button>
                         <button 
                           onClick={() => onApproveProposal(item.id, "completed")}
                           className="px-3 py-1.5 text-[10px] font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg flex items-center gap-0.5 transition-colors shadow-xs cursor-pointer"
                         >
                           <Check className="w-3.5 h-3.5" /> 実施完了にする
-                        </button>
-                      </div>
-                    )}
-
-                    {isPending && (
-                      <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100/40">
-                        <button 
-                          onClick={() => onApproveProposal(item.id, "dismissed")}
-                          className="px-2.5 py-1 text-[10px] font-bold text-rose-600 bg-rose-50/50 hover:bg-rose-50 border border-rose-100 rounded-lg flex items-center gap-0.5 transition-colors"
-                        >
-                          <X className="w-3 h-3" /> 各却下
-                        </button>
-                        <button 
-                          onClick={() => onApproveProposal(item.id, "approved")}
-                          className="px-3 py-1 text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg flex items-center gap-0.5 transition-colors shadow-xs"
-                        >
-                          <Check className="w-3 h-3" /> カレンダー承認
                         </button>
                       </div>
                     )}
@@ -357,6 +364,92 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
 
       </div>
+
+      {/* PROPOSAL EDIT MODAL */}
+      {editingProposal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 font-sans">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-xl border border-slate-100 space-y-4">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+              <h3 className="text-base font-bold text-slate-800 flex items-center gap-1.5 m-0">
+                <Pencil className="w-4 h-4 text-emerald-600" />
+                お世話タスクの編集
+              </h3>
+              <button 
+                onClick={() => setEditingProposal(null)}
+                className="text-slate-400 hover:text-slate-600 cursor-pointer p-1"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {/* Plant Name */}
+              <div>
+                <label className="block text-xs font-bold text-slate-400 mb-1">対象の植物</label>
+                <div className="text-sm font-semibold text-slate-700 bg-slate-50 px-3 py-2 rounded-xl">
+                  {editingProposal.plantName}
+                </div>
+              </div>
+
+              {/* Task type */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">タスクの種類</label>
+                <select
+                  value={editType}
+                  onChange={(e) => setEditType(e.target.value)}
+                  className="w-full text-xs font-sans font-medium px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+                >
+                  <option value="watering">💧 水やり</option>
+                  <option value="nutrient">🧪 液肥追肥 / 施肥</option>
+                  <option value="water_change">🌊 全水換え</option>
+                  <option value="ph_check">📊 水質測定 / pH測定</option>
+                  <option value="harvest">✂️ 推奨収穫</option>
+                  <option value="pruning">✂️ 剪定</option>
+                  <option value="weeding_aeration">🌱 草取り・中耕</option>
+                </select>
+              </div>
+
+              {/* Proposed date */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5">実施予定日</label>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="w-full text-xs font-sans font-medium px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Note / description */}
+              <div>
+                <label className="block text-xs font-bold text-slate-500 mb-1.5 font-sans">作業メモ・AIアドバイス</label>
+                <textarea
+                  value={editNote}
+                  onChange={(e) => setEditNote(e.target.value)}
+                  rows={3}
+                  className="w-full text-xs font-sans font-medium px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 resize-none leading-relaxed"
+                  placeholder="タスクの詳細を入力してください"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2.5 justify-end pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setEditingProposal(null)}
+                className="px-4 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-xs font-bold text-slate-600 transition-colors cursor-pointer"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-colors shadow-xs cursor-pointer flex items-center gap-1"
+              >
+                <Check className="w-3.5 h-3.5" /> 保存する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

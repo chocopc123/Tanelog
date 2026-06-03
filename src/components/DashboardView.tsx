@@ -96,7 +96,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // Filter pending proposals for this user
   const pendingProposals = proposals.filter(p => p.status === "pending" && activePlantIds.includes(p.plantId));
   const approvedToday = proposals.filter(p => {
-    if (p.status !== "approved") return false;
+    if (p.status !== "approved" && p.status !== "pending") return false;
     if (!activePlantIds.includes(p.plantId)) return false;
     const todayStr = new Date().toISOString().split("T")[0];
     return p.proposedDate === todayStr;
