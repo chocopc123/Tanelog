@@ -7,7 +7,7 @@ import {
 interface SettingsViewProps {
   user: User;
   userLocation: string;
-  onUpdateProfile: (name: string) => void;
+  onUpdateProfile: (name: string, showPhEc?: boolean) => void;
   onUpdateLocation: (location: string) => void;
   onClearDBData?: () => void;
 }
@@ -20,13 +20,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   onClearDBData
 }) => {
   const [name, setName] = useState(user.name);
+  const [showPhEc, setShowPhEc] = useState(user.showPhEc !== false);
   const [locationStr, setLocationStr] = useState(userLocation);
   const [savedName, setSavedName] = useState(false);
   const [savedLoc, setSavedLoc] = useState(false);
 
   const handleProfileSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateProfile(name);
+    onUpdateProfile(name, showPhEc);
     setSavedName(true);
     setTimeout(() => setSavedName(false), 3000);
   };
@@ -86,11 +87,29 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               />
             </div>
 
+            <div className="flex items-start gap-2 pt-2 border-t border-slate-100">
+              <input 
+                type="checkbox" 
+                id="showPhEc" 
+                checked={showPhEc} 
+                onChange={(e) => setShowPhEc(e.target.checked)}
+                className="mt-0.5 w-4 h-4 text-emerald-600 focus:ring-emerald-500 border-slate-300 rounded cursor-pointer"
+              />
+              <div className="flex-1">
+                <label htmlFor="showPhEc" className="text-slate-700 text-xs font-bold font-sans select-none cursor-pointer block">
+                  pH・EC測定の高度な水質管理をサポートする
+                </label>
+                <span className="text-[10px] text-slate-400 leading-snug block mt-0.5">
+                  チェックを外すと、pHやEC値、水温の入力フォームが非表示になり、カレンダーのAI提案でも水質測定タスクが提案されなくなります。
+                </span>
+              </div>
+            </div>
+
             <button 
               type="submit"
               className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all shadow-xs cursor-pointer"
             >
-              <Save className="w-4 h-4" /> ユーザー名を保存
+              <Save className="w-4 h-4" /> 設定を保存
             </button>
 
             {savedName && (

@@ -618,7 +618,7 @@ export default function App() {
   };
 
   // Settings updates
-  const handleUpdateUserProfile = async (name: string) => {
+  const handleUpdateUserProfile = async (name: string, showPhEc?: boolean) => {
     try {
       const res = await fetch("/api/auth/profile", {
         method: "PUT",
@@ -626,7 +626,7 @@ export default function App() {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`
         },
-        body: JSON.stringify({ name })
+        body: JSON.stringify({ name, showPhEc })
       });
       if (res.ok) {
         const data = await res.json();

@@ -4,6 +4,7 @@ export interface User {
   name: string;
   createdAt: string;
   updatedAt?: string;
+  showPhEc?: boolean;
 }
 
 export type SystemType = 'Soil_Planter' | 'Backyard_Field' | 'DWC' | 'NFT' | 'Kratky' | 'Ebb_Flow' | 'Other';

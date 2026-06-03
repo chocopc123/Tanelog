@@ -105,6 +105,28 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
   const [logNote, setLogNote] = useState("");
   const [logWatered, setLogWatered] = useState(true);
   const [logPhotoBase64s, setLogPhotoBase64s] = useState<string[]>([]);
+  
+  // Automatic temperature fetching state
+  const [fetchingTemp, setFetchingTemp] = useState(false);
+
+  const handleFetchCurrentTemp = async () => {
+    setFetchingTemp(true);
+    try {
+      const loc = localStorage.getItem("hydro_location") || "長野県長野市";
+      const url = `/api/weather-current?location=${encodeURIComponent(loc)}`;
+      const res = await fetch(url, {
+        headers: { "Authorization": `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setLogTemp(String(data.temp));
+      }
+    } catch (e) {
+      console.error("Failed to fetch climate temperature automatically", e);
+    } finally {
+      setFetchingTemp(false);
+    }
+  };
 
   // Nutrient Inputs
   const [nutBrand, setNutBrand] = useState("ハイポニカ液体肥料 (A液+B液)");
@@ -1362,41 +1384,53 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                       {isSoil ? "今日の栽培観察を記録" : "今日の測定データを記録"}
                     </h3>
                     
-                    <div>
-                      <label className="block text-slate-500 text-[10.5px] font-bold mb-1">
-                        {isSoil ? "土壌酸度 pH値 (任意)" : "水素イオン指数 pH 値"}
-                      </label>
-                      <input 
-                        type="number" 
-                        step="0.1"
-                        min="2"
-                        max="12"
-                        value={logPh}
-                        onChange={(e) => setLogPh(e.target.value)}
-                        placeholder={isSoil ? "例: 6.5 (簡易測定器)" : "例: 6.2"}
-                        className="w-full px-3 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-mono"
-                      />
-                    </div>
+                    {user.showPhEc !== false && (
+                      <>
+                        <div>
+                          <label className="block text-slate-500 text-[10.5px] font-bold mb-1">
+                            {isSoil ? "土壌酸度 pH値 (任意)" : "水素イオン指数 pH 値"}
+                          </label>
+                          <input 
+                            type="number" 
+                            step="0.1"
+                            min="2"
+                            max="12"
+                            value={logPh}
+                            onChange={(e) => setLogPh(e.target.value)}
+                            placeholder={isSoil ? "例: 6.5 (簡易測定器)" : "例: 6.2"}
+                            className="w-full px-3 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-slate-500 text-[10.5px] font-bold mb-1">
+                            {isSoil ? "土壌 EC値 / 栄養濃度 (任意)" : "電気伝導度 EC値 (mS/cm)"}
+                          </label>
+                          <input 
+                            type="number" 
+                            step="0.05"
+                            min="0"
+                            max="5"
+                            value={logEc}
+                            onChange={(e) => setLogEc(e.target.value)}
+                            placeholder={isSoil ? "測定したもののみ" : "例: 1.4"}
+                            className="w-full px-3 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-mono"
+                          />
+                        </div>
+                      </>
+                    )}
 
                     <div>
-                      <label className="block text-slate-500 text-[10.5px] font-bold mb-1">
-                        {isSoil ? "土壌 EC値 / 栄養濃度 (任意)" : "電気伝導度 EC値 (mS/cm)"}
-                      </label>
-                      <input 
-                        type="number" 
-                        step="0.05"
-                        min="0"
-                        max="5"
-                        value={logEc}
-                        onChange={(e) => setLogEc(e.target.value)}
-                        placeholder={isSoil ? "測定したもののみ" : "例: 1.4"}
-                        className="w-full px-3 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-mono"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-slate-500 text-[10.5px] font-bold mb-1">
-                        {isSoil ? "周囲気温 または 地温 (℃)" : "追加時の水温 (℃)"}
+                      <label className="block text-slate-500 text-[10.5px] font-bold mb-1 flex justify-between items-center">
+                        <span>{isSoil ? "周囲気温 または 地温 (℃)" : "追加時の水温 (℃)"}</span>
+                        <button
+                          type="button"
+                          disabled={fetchingTemp}
+                          onClick={handleFetchCurrentTemp}
+                          className="text-[9.5px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-0.5 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded cursor-pointer disabled:opacity-50"
+                        >
+                          {fetchingTemp ? "計測中..." : "🌤 気温を自動取得"}
+                        </button>
                       </label>
                       <input 
                         type="number" 
@@ -2293,47 +2327,65 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[10.5px] font-semibold text-slate-500 mb-1">🧪 pH値</label>
-                  <input 
-                    type="number" 
-                    step="0.1"
-                    min="1"
-                    max="12"
-                    value={editGrowPh} 
-                    onChange={(e) => setEditGrowPh(e.target.value)} 
-                    placeholder="pH"
-                    className="w-full text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden text-center font-mono transition-all"
-                  />
+              {user.showPhEc !== false ? (
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-slate-500 mb-1">🧪 pH値</label>
+                    <input 
+                      type="number" 
+                      step="0.1"
+                      min="1"
+                      max="12"
+                      value={editGrowPh} 
+                      onChange={(e) => setEditGrowPh(e.target.value)} 
+                      placeholder="pH"
+                      className="w-full text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden text-center font-mono transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-slate-500 mb-1">⚡ EC値（mS/cm）</label>
+                    <input 
+                      type="number" 
+                      step="0.05"
+                      min="0"
+                      max="5"
+                      value={editGrowEc} 
+                      onChange={(e) => setEditGrowEc(e.target.value)} 
+                      placeholder="EC"
+                      className="w-full text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden text-center font-mono transition-all"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-slate-500 mb-1">🌡️ 水温（℃）</label>
+                    <input 
+                      type="number" 
+                      step="0.1"
+                      min="0"
+                      max="40"
+                      value={editGrowWaterTemp} 
+                      onChange={(e) => setEditGrowWaterTemp(e.target.value)} 
+                      placeholder="水温"
+                      className="w-full text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden text-center font-mono transition-all"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[10.5px] font-semibold text-slate-500 mb-1">⚡ EC値（mS/cm）</label>
-                  <input 
-                    type="number" 
-                    step="0.05"
-                    min="0"
-                    max="5"
-                    value={editGrowEc} 
-                    onChange={(e) => setEditGrowEc(e.target.value)} 
-                    placeholder="EC"
-                    className="w-full text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden text-center font-mono transition-all"
-                  />
+              ) : (
+                <div className="grid grid-cols-1">
+                  <div>
+                    <label className="block text-[10.5px] font-semibold text-slate-500 mb-1">🌡️ 地温・水温・気温（℃）</label>
+                    <input 
+                      type="number" 
+                      step="0.1"
+                      min="0"
+                      max="40"
+                      value={editGrowWaterTemp} 
+                      onChange={(e) => setEditGrowWaterTemp(e.target.value)} 
+                      placeholder="温度"
+                      className="w-full text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden text-center font-mono transition-all"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-[10.5px] font-semibold text-slate-500 mb-1">🌡️ 水温（℃）</label>
-                  <input 
-                    type="number" 
-                    step="0.1"
-                    min="0"
-                    max="40"
-                    value={editGrowWaterTemp} 
-                    onChange={(e) => setEditGrowWaterTemp(e.target.value)} 
-                    placeholder="水温"
-                    className="w-full text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden text-center font-mono transition-all"
-                  />
-                </div>
-              </div>
+              )}
 
               <div>
                 <label className="block text-[10.5px] font-semibold text-slate-500 mb-1">📝 観察メモ・日々の変化</label>
