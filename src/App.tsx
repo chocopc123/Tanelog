@@ -913,7 +913,7 @@ export default function App() {
 
       {/* Humble aesthetic footer */}
       <footer className="bg-white border-t border-slate-100 py-6 text-center text-slate-450 font-mono text-[10px] text-slate-400">
-        <div>たねログ (Tanelog) © 2026</div>
+        <div>たねログ (Tanelog) 2026 by choco_duck</div>
       </footer>
 
     </div>
