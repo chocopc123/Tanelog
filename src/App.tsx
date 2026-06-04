@@ -77,17 +77,22 @@ export default function App() {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
-        const data = await res.json();
-        if (data.predictions) {
-          setPredictions(data.predictions);
-        }
-        if (data.lastHarvestCalculationAt) {
-          setLastCalcAt(data.lastHarvestCalculationAt);
-        }
-        if (data.geminiError) {
-          setPredictionsError(data.geminiError);
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          if (data.predictions) {
+            setPredictions(data.predictions);
+          }
+          if (data.lastHarvestCalculationAt) {
+            setLastCalcAt(data.lastHarvestCalculationAt);
+          }
+          if (data.geminiError) {
+            setPredictionsError(data.geminiError);
+          } else {
+            setPredictionsError(null);
+          }
         } else {
-          setPredictionsError(null);
+          console.warn("Harvest predictions API response was not JSON (server may be restarting/rebuilding)");
         }
       }
     } catch (err) {
@@ -103,8 +108,13 @@ export default function App() {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
-        const data = await res.json();
-        setUser(data.user);
+        const contentType = res.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await res.json();
+          setUser(data.user);
+        } else {
+          console.warn("Auth check: non-JSON response from server");
+        }
       } else {
         // Clear stale credentials safely
         handleLogout();
@@ -126,21 +136,36 @@ export default function App() {
       ]);
 
       if (resSys.ok && resPlants.ok && resProps.ok) {
-        const sysData = await resSys.json();
-        const plantData = await resPlants.json();
-        const propsData = await resProps.json();
+        const ctSys = resSys.headers.get("content-type");
+        const ctPlants = resPlants.headers.get("content-type");
+        const ctProps = resProps.headers.get("content-type");
 
-        setSystems(sysData);
-        setPlants(plantData);
-        setProposals(propsData);
+        if (
+          ctSys && ctSys.includes("application/json") &&
+          ctPlants && ctPlants.includes("application/json") &&
+          ctProps && ctProps.includes("application/json")
+        ) {
+          const sysData = await resSys.json();
+          const plantData = await resPlants.json();
+          const propsData = await resProps.json();
 
-        // Auto re-hydrate detailed plant if it is currently selected
-        if (selectedPlantDetails) {
-          const freshDetailsRes = await fetch(`/api/plants/${selectedPlantDetails.id}`, { headers: headerAuth });
-          if (freshDetailsRes.ok) {
-            const fd = await freshDetailsRes.json();
-            setSelectedPlantDetails(fd);
+          setSystems(sysData);
+          setPlants(plantData);
+          setProposals(propsData);
+
+          // Auto re-hydrate detailed plant if it is currently selected
+          if (selectedPlantDetails) {
+            const freshDetailsRes = await fetch(`/api/plants/${selectedPlantDetails.id}`, { headers: headerAuth });
+            if (freshDetailsRes.ok) {
+              const ctDetails = freshDetailsRes.headers.get("content-type");
+              if (ctDetails && ctDetails.includes("application/json")) {
+                const fd = await freshDetailsRes.json();
+                setSelectedPlantDetails(fd);
+              }
+            }
           }
+        } else {
+          console.warn("Database sync: non-JSON responses received (server may be restarting/rebuilding)");
         }
       }
     } catch (e) {
@@ -647,8 +672,8 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 px-6 lg:px-8 font-sans">
         <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-3">
-          <div className="mx-auto w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-md">
-            <Sprout className="w-7 h-7 text-white" />
+          <div className="mx-auto w-12 h-12 flex items-center justify-center">
+            <img src="/tanelog.png" alt="たねログ" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
           </div>
           <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">たねログ</h2>
           <p className="text-slate-500 text-xs">
@@ -744,9 +769,9 @@ export default function App() {
       <header className="bg-white border-b border-slate-100 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <span className="p-1 px-1.5 bg-emerald-600 rounded-xl text-white block">
-              <Sprout className="w-5 h-5" />
-            </span>
+            <div className="w-8 h-8 flex items-center justify-center">
+              <img src="/tanelog.png" alt="たねログ" className="w-full h-full object-contain" referrerPolicy="no-referrer" />
+            </div>
             <span className="font-extrabold text-sm sm:text-base tracking-tight text-slate-850">
               たねログ
             </span>
