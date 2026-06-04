@@ -1969,7 +1969,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                   <Sparkles className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
                   <div className="text-xs space-y-1">
                     <h4 className="font-extrabold text-emerald-800">
-                      {isSoil ? "スマート菜園・土耕AIアドバイザー接続中" : "スマート栽培・AIアドバイザー接続中"}
+                      {isSoil ? "たねログ・土耕AIアドバイザー接続中" : "たねログ・水耕AIアドバイザー接続中"}
                     </h4>
                     <p className="text-slate-600 leading-relaxed font-sans">
                       会話の度に、植物の<strong>「sowing_date（種まき日：{selectedPlant.sowingDate}）」、「現在の育成ステージ（{selectedPlant.stage}）」、および「登録されている観察測定ログ」や「直近の施肥履歴」</strong>をAIへコンテキストとして自動送信。

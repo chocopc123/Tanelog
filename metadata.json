@@ -1,5 +1,5 @@
 {
-  "name": "菜園＆スマート栽培管理システム",
+  "name": "たねログ (Tanelog)",
   "description": "ベランダプランター、家庭菜園、露地畑から水耕栽培まで対応。AIによる地域気候アドバイス、散布・水やり提案、共同栽培管理を提供するスマートGrow Logツール",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]

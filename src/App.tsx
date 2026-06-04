@@ -650,9 +650,9 @@ export default function App() {
           <div className="mx-auto w-12 h-12 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-md">
             <Sprout className="w-7 h-7 text-white" />
           </div>
-          <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">スマート菜園・プランター管理</h2>
+          <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">たねログ</h2>
           <p className="text-slate-500 text-xs">
-            ベランダ家庭菜園、お庭の露地、室内水耕まで対応。成長ログ、共同栽培管理、そしてGemini AIによる散水・お世話自動スケジュール。
+            ベランダ家庭菜園、お庭の露地、室内水耕まで対応。プランターの成長記録、共同栽培管理、そしてお世話のスケジュール管理。
           </p>
         </div>
 
@@ -748,7 +748,7 @@ export default function App() {
               <Sprout className="w-5 h-5" />
             </span>
             <span className="font-extrabold text-sm sm:text-base tracking-tight text-slate-850">
-              菜園＆スマート栽培管理
+              たねログ
             </span>
           </div>
 
@@ -913,8 +913,7 @@ export default function App() {
 
       {/* Humble aesthetic footer */}
       <footer className="bg-white border-t border-slate-100 py-6 text-center text-slate-450 font-mono text-[10px] text-slate-400">
-        <div>Smart Garden & Cultivation Platform © 2026</div>
-        <div className="mt-1">Powered by Gemini-3.5-Flash with Local Climate Adapter</div>
+        <div>たねログ (Tanelog) © 2026</div>
       </footer>
 
     </div>
