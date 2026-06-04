@@ -9,13 +9,15 @@ interface CalendarViewProps {
   onApproveProposal: (id: string, status: ProposalStatus, approvedDate?: string, type?: string, note?: string) => void;
   userToken: string;
   plants: any[];
+  systems?: any[];
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   proposals,
   onApproveProposal,
   userToken,
-  plants
+  plants,
+  systems = []
 }) => {
   // Current calendar date state
   const [currentDate, setCurrentDate] = useState<Date>(new Date("2026-06-03")); // Seed matching current local time metadata
@@ -26,6 +28,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [editType, setEditType] = useState<string>("");
   const [editDate, setEditDate] = useState<string>("");
   const [editNote, setEditNote] = useState<string>("");
+
+  const isSoilProposal = (plantId: string) => {
+    const plant = (plants || []).find(p => p.id === plantId);
+    if (!plant) return false;
+    const sys = (systems || []).find(s => s.id === plant.systemId);
+    if (!sys) return false;
+    return sys.type === "Soil_Planter" || sys.type === "Backyard_Field";
+  };
 
   const startEditingProposal = (proposal: any) => {
     setEditingProposal(proposal);
@@ -99,27 +109,27 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const weekdays = ["日", "月", "火", "水", "木", "金", "土"];
 
   // Colors mapping
-  const getTypeStyles = (type: string, status: string) => {
+  const getTypeStyles = (type: string, status: string, plantId?: string) => {
     if (type === "nutrient") {
       return {
         bg: "bg-indigo-50 border border-indigo-100",
         text: "text-indigo-800",
         badge: "bg-indigo-500",
-        label: "🧪 施肥"
+        label: "🧪 追肥"
       };
     } else if (type === "water_change") {
       return {
         bg: "bg-amber-50 border border-amber-100",
         text: "text-amber-800",
         badge: "bg-amber-500",
-        label: "💧 水換"
+        label: "💧 水やり・水換え"
       };
     } else if (type === "ph_check") {
       return {
         bg: "bg-teal-50 border border-teal-100",
         text: "text-teal-800",
         badge: "bg-teal-500",
-        label: "📊 測定"
+        label: "📊 測定・確認"
       };
     } else if (type === "harvest") {
       return {
@@ -128,7 +138,29 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         badge: "bg-emerald-600",
         label: "✂️ 収穫"
       };
+    } else if (type === "watering") {
+      return {
+        bg: "bg-blue-50 border border-blue-100",
+        text: "text-blue-800",
+        badge: "bg-blue-500",
+        label: "💧 水やり"
+      };
+    } else if (type === "pruning") {
+      return {
+        bg: "bg-rose-50 border border-rose-100",
+        text: "text-rose-800",
+        badge: "bg-rose-550",
+        label: "✂️ 剪定・芽かき"
+      };
+    } else if (type === "weeding_aeration") {
+      return {
+        bg: "bg-amber-50 border border-amber-100",
+        text: "text-amber-800",
+        badge: "bg-amber-550",
+        label: "🌱 草取り・中耕"
+      };
     }
+
     return {
       bg: "bg-slate-100 border border-slate-200",
       text: "text-slate-700",
@@ -191,10 +223,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
         {/* Legend */}
         <div id="calendar-legends" className="flex items-center gap-3 text-[10px] text-slate-500 flex-wrap">
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-indigo-500 block"></span> 🧪 液肥追肥</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-amber-500 block"></span> 💧 全水換え</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-teal-500 block"></span> 📊 水質測定</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-emerald-600 block"></span> ✂️ 推奨収穫</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-indigo-500 block"></span> 🧪 追肥</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-amber-500 block"></span> 💧 水やり・水換え</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-teal-500 block"></span> 📊 測定・確認</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-emerald-600 block"></span> ✂️ 収穫</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded bg-rose-500 block"></span> ✂️ 剪定・芽かき</span>
         </div>
       </div>
 
@@ -267,7 +300,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   {/* Day Events stack */}
                   <div className="space-y-1 mt-1 flex-1 flex flex-col justify-end">
                     {events.slice(0, 3).map((ev, eIdx) => {
-                      const styles = getTypeStyles(ev.type, ev.status);
+                      const styles = getTypeStyles(ev.type, ev.status, ev.plantId);
                       return (
                         <div 
                           key={ev.id || eIdx} 
@@ -305,7 +338,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               </div>
             ) : (
               listFilteredProposals.map((item, idx) => {
-                const styles = getTypeStyles(item.type, item.status);
+                const styles = getTypeStyles(item.type, item.status, item.plantId);
                 const isApproved = item.status === "approved" || item.status === "pending"; // treat pending as directly approved
 
                 return (
@@ -399,12 +432,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   onChange={(e) => setEditType(e.target.value)}
                   className="w-full text-xs font-sans font-medium px-3.5 py-2.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                 >
-                  <option value="watering">💧 水やり</option>
-                  <option value="nutrient">🧪 液肥追肥 / 施肥</option>
-                  <option value="water_change">🌊 全水換え</option>
-                  <option value="ph_check">📊 水質測定 / pH測定</option>
-                  <option value="harvest">✂️ 推奨収穫</option>
-                  <option value="pruning">✂️ 剪定</option>
+                  <option value="watering">💧 通常水やり</option>
+                  <option value="nutrient">🧪 追肥</option>
+                  <option value="water_change">💧 水やり・水換え</option>
+                  <option value="ph_check">📊 測定・確認</option>
+                  <option value="harvest">✂️ 収穫</option>
+                  <option value="pruning">✂️ 剪定・芽かき</option>
                   <option value="weeding_aeration">🌱 草取り・中耕</option>
                 </select>
               </div>

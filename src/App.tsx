@@ -896,6 +896,7 @@ export default function App() {
             onApproveProposal={handleApproveProposal}
             userToken={user.id}
             plants={plants}
+            systems={systems}
           />
         )}
 
