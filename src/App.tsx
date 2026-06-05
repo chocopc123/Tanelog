@@ -129,7 +129,7 @@ export default function App() {
           }
         }
       } catch (err) {
-        console.error("Failed to fetch climate/weather advice:", err);
+        console.warn("Failed to fetch climate/weather advice:", err);
       } finally {
         if (active) setLoadingWeather(false);
       }
@@ -197,7 +197,7 @@ export default function App() {
         }
       }
     } catch (err) {
-      console.error("Failed to fetch harvest predictions:", err);
+      console.warn("Failed to fetch harvest predictions:", err);
     } finally {
       setLoadingPredictions(false);
     }
@@ -221,7 +221,7 @@ export default function App() {
         handleLogout();
       }
     } catch (e) {
-      console.error("Failed to load user profile", e);
+      console.warn("Failed to load user profile", e);
     }
   };
 
@@ -270,7 +270,7 @@ export default function App() {
         }
       }
     } catch (e) {
-      console.error("Database status synchronization failed:", e);
+      console.warn("Database status synchronization failed:", e);
     } finally {
       if (!silent) setLoading(false);
     }

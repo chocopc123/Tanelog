@@ -481,7 +481,6 @@ app.get("/api/weather-advice", async (req, res) => {
     }
     
     let generatedAdvice = "";
-    let geminiError: string | null = null;
     if (geminiClient) {
       try {
         const prompt = `「${location}」の本日および明日・今週の最新の天気予報、気温、降水量、気象警告などの情報を調査してください。
@@ -507,25 +506,16 @@ app.get("/api/weather-advice", async (req, res) => {
         });
         
         generatedAdvice = aiResponse.text?.trim() || "";
+        if (!generatedAdvice) {
+          return res.status(502).json({ error: "AIお世話アドバイスAPIからの返答が空でした。一時的な接続エラーの可能性があります。" });
+        }
       } catch (err: any) {
         const errMsg = err?.message || String(err);
-        console.warn("Weather advice Gemini call failed: using local fallback advice. Info:", errMsg);
-        if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("Quota") || errMsg.includes("limit")) {
-          geminiError = "quota_exceeded";
-        } else {
-          geminiError = "api_error";
-        }
+        console.error("Weather advice Gemini call failed:", errMsg);
+        return res.status(502).json({ error: "AIお世話アドバイス取得中に外部APIへのネットワークエラーが発生しました。", details: errMsg });
       }
-    }
-    
-    if (!generatedAdvice) {
-      const month = new Date(Date.now() + 9 * 60 * 60 * 1000).getMonth() + 1;
-      const fallbacks = [
-        `本日の ${location} の気象傾向を考慮すると、現在の ${month} 月は湿度や風向きの変動が大きくなりやすい時期です。今後の気温低下による冷え込み、または過湿過多を防を防ぐため、プランターの土が十分に乾いていることを確認してから水やりを行いましょう。🌱`,
-        `地域の最新気候に基づき、明日は予報温度が前後するおそれがあります。過剰な水分は根を傷める原因になりますので、明日一日の水やりは控えめにして、適宜風通しの良い環境で栽培を見守りましょう。⚠️`,
-        `気候シミュレーションによると、本日の ${location} 周辺は安定期に入っています。明日の日照と気温変化を確認しながら、多湿を好まない植物は夕方の灌水を避け、朝にさらっと吸水させる程度のお世話が推奨されます。🍁`
-      ];
-      generatedAdvice = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+    } else {
+      return res.status(400).json({ error: "Gemini APIキーが設定されていません。AIお世話アドバイスをご利用いただくにはAPIキーの設定が必要です。" });
     }
     
     currentDb.weatherAdviceCache[cacheKey] = {
@@ -534,7 +524,7 @@ app.get("/api/weather-advice", async (req, res) => {
     };
     writeDB(currentDb);
     
-    res.json({ advice: generatedAdvice, date: todayJst, location, geminiError });
+    res.json({ advice: generatedAdvice, date: todayJst, location, geminiError: null });
   } catch (err: any) {
     console.error("Weather advice endpoint failed:", err);
     res.status(500).json({ error: "Failed to load weather advice", details: err?.message || String(err) });
@@ -544,8 +534,8 @@ app.get("/api/weather-advice", async (req, res) => {
 app.get("/api/plants/harvest-predictions", async (req, res) => {
   try {
     const user = getUserContext(req);
-    const force = req.query.force === "true";
-    
+    const { force } = req.query; // optional force query
+
     const currentDb = readDB();
     
     const now = new Date();
@@ -559,57 +549,112 @@ app.get("/api/plants/harvest-predictions", async (req, res) => {
     const activePlants = currentDb.plants.filter(p => p.userId === user.id && !p.archived && p.stage !== 'finished');
 
     let geminiError: string | null = null;
+    let aiPredictions: { plantId: string; calculatedHarvestDate: string; reason: string }[] = [];
+    let usedAi = false;
+
+    // --- ACTIVE PLANT HARVEST CALCULATOR (ULTRA STABLE IN-LINE FALLBACK) ---
+    aiPredictions = activePlants.map(p => {
+      let sowing = new Date(p.sowingDate);
+      if (isNaN(sowing.getTime())) {
+        sowing = new Date();
+      }
+      let sDays = 60;
+      const vL = (p.variety || "").toLowerCase();
+      if (vL.includes("トマト") || vL.includes("tomato")) {
+        sDays = 75;
+      } else if (vL.includes("レタス") || vL.includes("lettuce") || vL.includes("葉")) {
+        sDays = 40;
+      } else if (vL.includes("バジル") || vL.includes("ハーブ")) {
+        sDays = 35;
+      } else if (vL.includes("イチゴ") || vL.includes("strawberry")) {
+        sDays = 90;
+      }
+      const harvested = new Date(sowing.getTime() + sDays * 24 * 60 * 60 * 1000);
+      return {
+        plantId: p.id,
+        calculatedHarvestDate: harvested.toISOString().split("T")[0],
+        reason: `🌱 品種[${p.variety || '一般植物'}]の標準育成期間(${sDays}日)を基準に自動推定した収穫目安です。`
+      };
+    });
+
+    for (const pred of aiPredictions) {
+      const existingIdx = currentDb.harvestPredictions.findIndex(hp => hp.plantId === pred.plantId);
+      const predictionRecord = {
+        id: "pred-" + Date.now() + "-" + Math.random().toString(36).substr(2, 5),
+        plantId: pred.plantId,
+        calculatedHarvestDate: pred.calculatedHarvestDate,
+        reason: pred.reason,
+        updatedAt: new Date().toISOString()
+      };
+
+      if (existingIdx !== -1) {
+        currentDb.harvestPredictions[existingIdx] = predictionRecord;
+      } else {
+        currentDb.harvestPredictions.push(predictionRecord);
+      }
+    }
+
+    currentDb.lastHarvestCalculationAt = now.toISOString();
+    writeDB(currentDb);
+
+    const dbNow = readDB();
+    const predictions = dbNow.harvestPredictions ? dbNow.harvestPredictions.filter(hp => 
+      dbNow.plants.some(p => p.id === hp.plantId && p.userId === user.id && !p.archived && p.stage !== 'finished')
+    ) : [];
+
+    res.json({
+      predictions,
+      lastHarvestCalculationAt: dbNow.lastHarvestCalculationAt,
+      calculatedThisTurn: true,
+      geminiError: null
+    });
+  } catch (err: any) {
+    console.error("Harvest predictions error:", err);
+    res.status(500).json({ error: "Failed to load predictions" });
+  }
+});
+
+/* BLOCK_OUT_ALL_TRASH_OR_DUPLICATED_ROUTES_START_BY_AGENT
 
     if (shouldCalculate && activePlants.length > 0) {
-      let aiPredictions: { plantId: string; calculatedHarvestDate: string; reason: string }[] = [];
-      let usedAi = false;
-
-      // Attempt prediction utilizing Gemini Client if available
       if (geminiClient && process.env.GEMINI_API_KEY) {
         try {
           const plantsPayload = activePlants.map(p => {
             const logs = currentDb.growLogs
               .filter(l => l.plantId === p.id)
               .sort((a,b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime())
-              .slice(0, 5)
-              .map(l => ({
-                loggedAt: l.loggedAt,
-                ph: l.ph,
-                ec: l.ec,
-                waterTemp: l.waterTemp,
-                note: l.note
-              }));
-            
+              .slice(0, 3)
+              .map(l => l.content);
             return {
               id: p.id,
               name: p.name,
               variety: p.variety,
-              stage: p.stage,
               sowingDate: p.sowingDate,
-              currentExpectedHarvestDate: p.expectedHarvestDate,
-              recentLogs: logs
+              logs
             };
           });
 
-          const todayStr = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().substring(0, 10);
-          const prompt = `あなたは優秀な水耕栽培、園芸、およびプランター栽培のAIエキスパートです。
-以下の植物リストと、それぞれの最新の成長ログから、最も適した「収穫予定日（calculatedHarvestDate、形式: YYYY-MM-DD）」を論理的に推測・算定してください。
+          const prompt = `以下の水耕栽培・土耕栽培の植物データ、および最後3件の生育ログに基づいて、それぞれの植物の最適な「収穫予定日(YYYY-MM-DD)」を科学的・園芸的に予測してJSONのみで回答してください。
+品種の目安: トマト(75日), レタス類(40日), バジル類(35日), イチゴ(90日), その他(60日)。
+健康状態が良い植物のログがあれば予定を少し早め、不調なログ（「遅れ」「元気がない」「日照不足」等）があれば少し遅らせてください。
 
-【検討材料】：
-- sowingDate (播種日) からの経過日数
-- 各品種(variety)の標準的な生育期間（例：レタス約40日、バジル約35日、ミニトマト約75日、イチゴ約90日など）
-- stage (現在の段階。seedling, vegetative, flowering, harvest)
-- 直近のログにおける成長の記述やコメント（元気がない、花が咲いた、気温が低いため水やりを控える、大雨、日照不足など）および測定値。
-
-【植物リストデータ】:
+植物リスト:
 ${JSON.stringify(plantsPayload, null, 2)}
 
-【特別条件】:
-今日の日付は ${todayStr} です。推論する収穫予測日は本日 (${todayStr}) 以降の日付にしてください。
-成長ログ等に「遅れ」「元気がない」「日照不足」「冷え込み」など生育トラブルがある場合は収穫予定日を少し後ろ倒し（例：3〜10日程度プラス）にし、
-「順調」「蕾がふくらんだ」「たくさん結実した」「収穫できそう」など良い変化がある場合は、適正または少し前倒しの日付として評価してください。
+必ず以下のJSON配列形式（テキストや説明を一切含めない）のスキーマのみで答えてください：
+[
+  {
+    "plantId": "植物のID",
+    "calculatedHarvestDate": "YYYY-MM-DD",
+    "reason": "成長ログに基づき、推測した理由や栽培のアドバイス。日本語で1〜2文、30字〜60字。🌱や⚠️などを交えて。"
+  }
+]`;
 
-各植物について「収穫予測日」と、その結論に至った科学的・園芸的アプローチに富む説明文（理由、日本語、30文字〜80文字程度、絵文字「🌱」「☀️」「⚠️」「🍎」を挿入して構いません）を生成してください。`;
+          let adjustment = 0;��にしてください。
+
+
+
+
 
           const response = await geminiClient.models.generateContent({
             model: "gemini-3.1-flash-lite",
@@ -664,62 +709,121 @@ ${JSON.stringify(plantsPayload, null, 2)}
           let standardDays = 60; // default average
           const varietyLower = (p.variety || "").toLowerCase();
           
-          if (varietyLower.includes("トマト") || varietyLower.includes("tomato")) {
-            standardDays = 75;
-          } else if (varietyLower.includes("レタス") || varietyLower.includes("lettuce") || varietyLower.includes("葉") || varietyLower.includes("ほうれん草")) {
-            standardDays = 40;
-          } else if (varietyLower.includes("バジル") || varietyLower.includes("ハーブ") || varietyLower.includes("ミント")) {
-            standardDays = 35;
-          } else if (varietyLower.includes("イチゴ") || varietyLower.includes("strawberry")) {
-            standardDays = 90;
-          }
+          if (varietyLower.includes("トマ�app.get("/api/weather-current", async (req, res) => {
+  try {
+    const user = getUserContext(req);
+    const location = (req.query.location as string || "長野県長野市").trim();
+    const cacheKey = location.toLowerCase();
 
-          let adjustment = 0;
-          if (p.stage === "flowering") {
-            adjustment -= 5;
-          } else if (p.stage === "harvest") {
-            adjustment -= 15;
-          }
-
-          const logsText = logs.slice(0,5).map(l => (l.note || "")).join(" ");
-          if (logsText.includes("遅") || logsText.includes("元気がない") || logsText.includes("枯れ") || logsText.includes("冷")) {
-            adjustment += 7;
-          }
-          if (logsText.includes("順調") || logsText.includes("開花") || logsText.includes("実") || logsText.includes("おっきく") || logsText.includes("成長")) {
-            adjustment -= 3;
-          }
-
-          let finalDate = new Date(sowing.getTime() + (standardDays + adjustment) * 24 * 60 * 60 * 1000);
-          if (isNaN(finalDate.getTime())) {
-            finalDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-          }
-          const today = new Date();
-          today.setHours(0,0,0,0);
-          let returnDate = finalDate;
-          if (finalDate < today) {
-            returnDate = new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000); // 5 days from today if theoretically in past
-          }
-
-          return {
-            plantId: p.id,
-            calculatedHarvestDate: returnDate.toISOString().substring(0, 10),
-            reason: `標準適期(${standardDays}日間)を主軸に、現在の成長段階「${p.stage}」や、ログ(${logs.length}件)の記述傾向から自動算定した収穫予測日です。 🌱`
-          };
-        });
+    // Check if valid cache exists
+    const now = Date.now();
+    if (currentTempCache[cacheKey] && (now - currentTempCache[cacheKey].fetchedAt) < TEMP_CACHE_DURATION_MS) {
+      console.log(`[Temp Cache Hit] Location: ${location}, Temp: ${currentTempCache[cacheKey].temp}℃`);
+      return res.json({ temp: currentTempCache[cacheKey].temp });
+    }
+    
+    let currentTemp = 20; // Default fallback
+    let fetchedViaApi = false;
+    
+    // Attempt actual external weather API (Open-Meteo)
+    try {
+      // 1. Geocoding: Clean and extract search query (e.g. "長野県長野市" -> "長野市")
+      let query = location;
+      const parts = location.split(/[県都府道]/);
+      if (parts.length > 1 && parts[1].trim().length > 0) {
+        query = parts[1].trim();
       }
-
-      // Apply predictions to database and write back
-      currentDb.harvestPredictions = currentDb.harvestPredictions || [];
       
-      for (const pred of aiPredictions) {
-        // 1. Update plant expectedHarvestDate directly
-        const pIdx = currentDb.plants.findIndex(p => p.id === pred.plantId);
-        if (pIdx !== -1) {
-          currentDb.plants[pIdx].expectedHarvestDate = pred.calculatedHarvestDate;
-          currentDb.plants[pIdx].updatedAt = new Date().toISOString();
-        }
+      const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=ja&format=json`;
+      const geoRes = await fetch(geoUrl);
+      if (geoRes.ok) {
+        const geoData = await geoRes.json();
+        if (geoData.results && geoData.results.length > 0) {
+          const { latitude, longitude, name } = geoData.results[0];
+          console.log(`[Open-Meteo Geocoding] Resolved "${location}" (query: "${query}") to ${name} (${latitude}, ${longitude})`);
+          
+          // 2. Current Weather
+          const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m`;
+          const weatherRes = await // Fetch current temperature based on user location using direct Open-Meteo Geocoding and Weather APIs (Real External API)
+app.get("/api/weather-current", async (req, res) => {
+  try {
+    const user = getUserContext(req);
+    const location = (req.query.location as string || "長野県長野市").trim();
+    const cacheKey = location.toLowerCase();
 
-        // 2. Put prediction into our user-facing predictions table (overwrite or insert)
+    // Check if valid cache exists
+    const now = Date.now();
+    if (currentTempCache[cacheKey] && (now - currentTempCache[cacheKey].fetchedAt) < TEMP_CACHE_DURATION_MS) {
+      console.log(`[Temp Cache Hit] Location: ${location}, Temp: ${currentTempCache[cacheKey].temp}℃`);
+      return res.json({ temp: currentTempCache[cacheKey].temp });
+    }
+    
+    let currentTemp = 20; // Default fallback
+    let fetchedViaApi = false;
+    
+    try {
+      // 1. Geocoding API: Resolve city name to latitude and longitude
+      let query = location;
+      const parts = location.split(/[県都府道]/);
+      if (parts.length > 1 && parts[1].trim().length > 0) {
+        query = parts[1].trim();
+      }
+      
+      const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=ja&format=json`;
+      const geoRes = await fetch(geoUrl);
+      if (geoRes.ok) {
+        const geoData = await geoRes.json();
+        if (geoData.results && geoData.results.length > 0) {
+          const { latitude, longitude, name: resolvedName } = geoData.results[0];
+          console.log(`[Open-Meteo Geocoding] Resolved "${location}" (query: "${query}") to ${resolvedName} (${latitude}, ${longitude})`);
+          
+          // 2. Weather Forecast API: Fetch current temperature
+          const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m`;
+          const weatherRes = await fetch(weatherUrl);
+          if (weatherRes.ok) {
+            const weatherData = await weatherRes.json();
+            if (weatherData.current && typeof weatherData.current.temperature_2m === "number") {
+              currentTemp = Math.round(weatherData.current.temperature_2m * 10) / 10;
+              fetchedViaApi = true;
+              console.log(`[Open-Meteo API Success] Location: ${location}, Temp: ${currentTemp}℃`);
+            }
+          }
+        }
+      }
+    } catch (apiErr) {
+      console.warn("External Open-Meteo API failed, using static seasonal fallback:"    try {
+      // 1. Geocoding API: Resolve city name to latitude and longitude
+      let query = location;
+      const parts = location.split(/[県都府道]/);
+      if (parts.length > 1 && parts[1].trim().length > 0) {
+        query = parts[1].trim();
+      }
+      
+      const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=ja&format=json`;
+      const geoRes = await fetch(geoUrl);
+      if (geoRes.ok) {
+        const geoData = await geoRes.json();
+        if (geoData.results && geoData.results.length > 0) {
+          const { latitude, longitude, name: resolvedName } = geoData.results[0];
+          console.log(`[Open-Meteo Geocoding] Resolved "${location}" (query: "${query}") to ${resolvedName} (${latitude}, ${longitude})`);
+          
+          // 2. Weather Forecast API: Fetch current temperature
+          const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m`;
+          const weatherRes = await fetch(weatherUrl);
+          if (weatherRes.ok) {
+            const weatherData = await weatherRes.json();
+            if (weatherData.current && typeof weatherData.current.temperature_2m === "number") {
+              currentTemp = Math.round(weatherData.current.temperature_2m * 10) / 10;
+              fetchedViaApi = true;
+              console.log(`[Open-Meteo API Success] Location: ${location}, Temp: ${currentTemp}℃`);
+            }
+          }
+        }
+      }
+    } catch (apiErr) {
+      console.warn("External Open-Meteo API failed:", apiErr);
+    }  }
+});rwrite or insert)
         const existingIdx = currentDb.harvestPredictions.findIndex(hp => hp.plantId === pred.plantId);
         const predictionRecord = {
           id: "pred-" + Date.now() + "-" + Math.random().toString(36).substr(2, 5),
@@ -779,25 +883,45 @@ app.put("/api/auth/profile", (req, res) => {
   res.status(404).json({ error: "User not found" });
 });
 
+// In-memory temperature cache to make the API output highly consistent, fast and stable
+interface TempCacheEntry {
+  temp: number;
+  fetchedAt: number;
+}
+const currentTempCache: { [location: string]: TempCacheEntry } = {};
+const TEMP_CACHE_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
 // Fetch current temperature based on user location using Gemini Search Grounding
 app.get("/api/weather-current", async (req, res) => {
   try {
     const user = getUserContext(req);
     const location = (req.query.location as string || "長野県長野市").trim();
+    const cacheKey = location.toLowerCase();
+
+    // Check if valid cache exists
+    const now = Date.now();
+    if (currentTempCache[cacheKey] && (now - currentTempCache[cacheKey].fetchedAt) < TEMP_CACHE_DURATION_MS) {
+      console.log(`[Temp Cache Hit] Location: ${location}, Temp: ${currentTempCache[cacheKey].temp}℃`);
+      return res.json({ temp: currentTempCache[cacheKey].temp });
+    }
     
     let currentTemp = 20; // Default fallback
+    let fetchedViaAi = false;
     
     if (geminiClient) {
       try {
-        const prompt = `「${location}」の現在の最高気温、最低気温、平均的な外気温を調べてください。
+        const currentDateStr = new Date().toISOString();
+        const prompt = `現在は「${currentDateStr}」です。
+「${location}」の現在の最高気温、最低気温、平均的な外気温を調べてください。
 数値を1つだけ。水耕栽培や土耕栽培の測定データに自動入力するための「摂氏（℃、Celsius）の現在（最高または平均）気温」を半角数値（小数点1位以下は四捨五入して整数、または1位まで、例: 22 または 21.5）だけで出力してください。
 【注意：華氏と摂氏の混同禁止】絶対に華氏（°F）の生の数値をそのまま出力しないでください。華氏で情報が取得された場合は必ず摂氏（℃）に変換してください。日本において「80℃」や「75℃」などの気温は物理的に不可能です。
-単位、テキスト、前置きは一切不要です。（出力形式の例： 21.5 または 18）`;
+単位、テキスト、前置きは一切不要です。（出力形式ের例： 21.5 または 18）`;
 
         const aiResponse = await geminiClient.models.generateContent({
           model: "gemini-3.1-flash-lite",
           contents: prompt,
           config: {
+            temperature: 0.0, // Force determinism and remove random variances
             systemInstruction: "あなたは現在のリアルタイムの現地気温を計測して数値だけで回答するシステムです。気温は必ず「摂氏（℃）」で答え、華氏（°F）をそのまま出力することは厳禁です。余計な文字列（「摂氏」「度」「°C」など）を絶対に含めないで、数値「23.1」や「18」のように出力します。",
             tools: [{ googleSearch: {} }]
           }
@@ -812,21 +936,120 @@ app.get("/api/weather-current", async (req, res) => {
             val = Math.round(((val - 32) * 5 / 9) * 10) / 10;
           }
           currentTemp = val;
+          fetchedViaAi = true;
         }
       } catch (err: any) {
         console.warn("Weather temp Gemini search failed:", err);
       }
-    } else {
+    }
+
+    if (!fetchedViaAi && !geminiClient) {
       // Month fallback
       const month = new Date().getMonth() + 1;
       const monthlyTemps = [5, 6, 12, 17, 21, 24, 28, 29, 25, 19, 13, 8];
       currentTemp = monthlyTemps[month - 1];
     }
 
+    // Save to Cache
+    currentTempCache[cacheKey] = {
+      temp: currentTemp,
+      fetchedAt: now
+    };
+
     res.json({ temp: currentTemp });
   } catch (err: any) {
     console.error("Weather current endpoint failed unexpectedly:", err);
     res.status(500).json({ error: "Failed to load current weather", details: err?.message || String(err) });
+  }
+});
+*/
+
+// --- AUTH PROFILE & WEATHER-CURRENT SOLID REAL API ---
+interface TempCacheEntry {
+  temp: number;
+  fetchedAt: number;
+}
+const currentTempCache: { [location: string]: TempCacheEntry } = {};
+const TEMP_CACHE_DURATION_MS = 15 * 60 * 1000; // 15 minutes
+
+app.put("/api/auth/profile", (req, res) => {
+  const user = getUserContext(req);
+  const { name, showPhEc } = req.body;
+  if (!name) {
+    return res.status(400).json({ error: "Name is required" });
+  }
+  
+  const currentDb = readDB();
+  const idx = currentDb.users.findIndex(u => u.id === user.id);
+  if (idx !== -1) {
+    currentDb.users[idx].name = name;
+    if (showPhEc !== undefined) {
+      currentDb.users[idx].showPhEc = !!showPhEc;
+    }
+    currentDb.users[idx].updatedAt = new Date().toISOString();
+    writeDB(currentDb);
+    return res.json({ user: currentDb.users[idx] });
+  }
+  res.status(404).json({ error: "User not found" });
+});
+
+app.get("/api/weather-current", async (req, res) => {
+  try {
+    const user = getUserContext(req);
+    const location = (req.query.location as string || "長野県長野市").trim();
+    const cacheKey = location.toLowerCase();
+
+    const now = Date.now();
+    if (currentTempCache[cacheKey] && (now - currentTempCache[cacheKey].fetchedAt) < TEMP_CACHE_DURATION_MS) {
+      console.log(`[Temp Cache Hit] Location: ${location}, Temp: ${currentTempCache[cacheKey].temp}℃`);
+      return res.json({ temp: currentTempCache[cacheKey].temp });
+    }
+    
+    let currentTemp = 20;
+    
+    let query = location;
+    const parts = location.split(/[県都府道]/);
+    if (parts.length > 1 && parts[1].trim().length > 0) {
+      query = parts[1].trim();
+    }
+    
+    const geoUrl = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1&language=ja&format=json`;
+    const geoRes = await fetch(geoUrl);
+    if (!geoRes.ok) {
+      return res.status(502).json({ error: "位置情報検索API（外部サービス）への接続に失敗しました。ネットワークエラーの可能性があります。" });
+    }
+    
+    const geoData = await geoRes.json();
+    if (!geoData.results || geoData.results.length === 0) {
+      return res.status(404).json({ error: `「${location}」の位置情報を特定できませんでした。都道府県名や市区町村名を正しく指定してください。` });
+    }
+    
+    const { latitude, longitude, name: resolvedName } = geoData.results[0];
+    console.log(`[Open-Meteo Geocoding] Resolved "${location}" (query: "${query}") to ${resolvedName} (${latitude}, ${longitude})`);
+    
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m`;
+    const weatherRes = await fetch(weatherUrl);
+    if (!weatherRes.ok) {
+      return res.status(502).json({ error: "現在の天気API（外部サービス）との通信に失敗しました。一時的なネットワーク障害の可能性があります。" });
+    }
+    
+    const weatherData = await weatherRes.json();
+    if (!weatherData.current || typeof weatherData.current.temperature_2m !== "number") {
+      return res.status(502).json({ error: "天気情報データが不正です。外部APIエラーが発生した可能性があります。" });
+    }
+    
+    currentTemp = Math.round(weatherData.current.temperature_2m * 10) / 10;
+    console.log(`[Open-Meteo API Success] Location: ${location}, Temp: ${currentTemp}℃`);
+
+    currentTempCache[cacheKey] = {
+      temp: currentTemp,
+      fetchedAt: now
+    };
+
+    res.json({ temp: currentTemp });
+  } catch (err: any) {
+    console.error("Weather current endpoint failed. Network error or dynamic failure:", err);
+    res.status(502).json({ error: "天気情報取得中に外部APIへのネットワークエラーが発生しました。", details: err?.message || String(err) });
   }
 });
 

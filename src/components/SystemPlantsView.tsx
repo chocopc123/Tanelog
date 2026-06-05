@@ -11,6 +11,25 @@ import {
   AlertTriangle, FlaskConical, Thermometer, ChevronRight, CornerDownRight, X, Clock, Upload, RefreshCcw, Sprout, Settings
 } from "lucide-react";
 
+const retryFetch = async (
+  url: string,
+  options?: RequestInit,
+  retries = 3,
+  delay = 1000
+): Promise<Response> => {
+  try {
+    const res = await fetch(url, options);
+    return res;
+  } catch (err) {
+    if (retries > 0) {
+      console.warn(`Fetch to ${url} failed. Retrying in ${delay}ms... (${retries} retries left)`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return retryFetch(url, options, retries - 1, delay * 1.5);
+    }
+    throw err;
+  }
+};
+
 interface SystemPlantsViewProps {
   user: User;
   systems: System[];
@@ -116,15 +135,19 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
     try {
       const loc = localStorage.getItem("hydro_location") || "長野県長野市";
       const url = `/api/weather-current?location=${encodeURIComponent(loc)}`;
-      const res = await fetch(url, {
+      const res = await retryFetch(url, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
         const data = await res.json();
         setLogTemp(String(data.temp));
+        triggerToast(`🌤 ${loc}のリアルタイム気温（${data.temp}℃）を自動取得しました！`);
+      } else {
+        triggerToast("⚠️ 気温の自動取得API呼び出しに失敗しました。");
       }
     } catch (e) {
       console.error("Failed to fetch climate temperature automatically", e);
+      triggerToast("⚠️ 気温の自動取得中にインターネット通信エラーが発生しました。");
     } finally {
       setFetchingTemp(false);
     }
@@ -1184,7 +1207,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                                     <div className="flex gap-2 text-[10px] text-slate-400 font-mono">
                                       <span>pH: <strong className={haspHAlert ? "text-amber-600 font-bold" : "text-slate-600"}>{p.latestPh ?? "ー"}</strong></span>
                                       <span>EC: <strong className="text-slate-600">{p.latestEc ? `${p.latestEc}` : "ー"}</strong></span>
-                                      <span>水温: <strong className={hasTempAlert ? "text-amber-600 font-bold" : "text-slate-600"}>{p.latestWaterTemp ? `${p.latestWaterTemp}℃` : "ー"}</strong></span>
+                                      <span>気温: <strong className={hasTempAlert ? "text-amber-600 font-bold" : "text-slate-600"}>{p.latestWaterTemp ? `${p.latestWaterTemp}℃` : "ー"}</strong></span>
                                     </div>
 
                                     <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
@@ -1480,7 +1503,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
 
                     <div>
                       <label className="block text-slate-500 text-[10.5px] font-bold mb-1 flex justify-between items-center">
-                        <span>{isSoil ? "周囲気温 または 地温 (℃)" : "追加時の水温 (℃)"}</span>
+                        <span>{isSoil ? "周囲気温 または 地温 (℃)" : "追加時の気温 (℃)"}</span>
                         <button
                           type="button"
                           disabled={fetchingTemp}
@@ -1611,7 +1634,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                                 <th className="p-3.5 font-bold text-center">水やり</th>
                                 <th className="p-3.5 font-bold text-center">pH 値</th>
                                 <th className="p-3.5 font-bold text-center">EC (mS/cm)</th>
-                                <th className="p-3.5 font-bold text-center">水温/温度</th>
+                                <th className="p-3.5 font-bold text-center">気温/温度</th>
                                 <th className="p-3.5 font-bold">状態メモ</th>
                                 <th className="p-3.5 font-bold text-center">操作</th>
                               </tr>
@@ -2369,7 +2392,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-[10.5px] font-semibold text-slate-500 mb-1">⚡ EC値（mS/cm）</label>
+                    <label className="block text-[10.5px] font-semibold text-slate-500 mb-1 font-sans">⚡ EC値（mS/cm）</label>
                     <input 
                       type="number" 
                       step="0.05"
@@ -2382,7 +2405,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-[10.5px] font-semibold text-slate-500 mb-1">🌡️ 水温（℃）</label>
+                    <label className="block text-[10.5px] font-semibold text-slate-500 mb-1 font-sans">🌡️ 気温（℃）</label>
                     <input 
                       type="number" 
                       step="0.1"
@@ -2390,7 +2413,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                       max="40"
                       value={editGrowWaterTemp} 
                       onChange={(e) => setEditGrowWaterTemp(e.target.value)} 
-                      placeholder="水温"
+                      placeholder="気温"
                       className="w-full text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden text-center font-mono transition-all"
                     />
                   </div>
@@ -2398,7 +2421,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
               ) : (
                 <div className="grid grid-cols-1">
                   <div>
-                    <label className="block text-[10.5px] font-semibold text-slate-500 mb-1">🌡️ 地温・水温・気温（℃）</label>
+                    <label className="block text-[10.5px] font-semibold text-slate-500 mb-1 font-sans">🌡️ 地温・気温（℃）</label>
                     <input 
                       type="number" 
                       step="0.1"
@@ -2768,8 +2791,8 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                           </div>
                         )}
                         {selectedPhotoLog.waterTemp && (
-                          <div className="px-3 py-1.5 bg-sky-50 text-sky-800 text-xs font-extrabold rounded-lg border border-sky-100 flex items-center gap-1">
-                            <span>🌡️</span> 水温 {selectedPhotoLog.waterTemp}℃
+                          <div className="px-3 py-1.5 bg-sky-50 text-sky-800 text-xs font-extrabold rounded-lg border border-sky-100 flex items-center gap-1 font-sans">
+                            <span>🌡️</span> 気温 {selectedPhotoLog.waterTemp}℃
                           </div>
                         )}
                         {selectedPhotoLog.watered && (
