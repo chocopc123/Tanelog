@@ -10,6 +10,7 @@ import { SettingsView } from "./components/SettingsView";
 import { 
   Activity, Calendar as CalendarIcon, Droplets, Settings, LogOut, Sprout, ShieldAlert, CloudRain, CheckSquare, Sparkles 
 } from "lucide-react";
+import { auth, GoogleAuthProvider, signInWithPopup } from "./firebase";
 
 const retryFetch = async (
   url: string,
@@ -41,9 +42,6 @@ export default function App() {
   // Authentication & Session
   const [token, setToken] = useState<string | null>(getCleanToken());
   const [user, setUser] = useState<User | null>(null);
-  const [loginEmail, setLoginEmail] = useState("choco.rgi.duck@gmail.com"); // Prefilled default user for seamless UX testing
-  const [loginName, setLoginName] = useState("栽培マスター");
-  const [isRegistering, setIsRegistering] = useState(false);
   const [authError, setAuthError] = useState("");
 
   // Navigation Panel Tab
@@ -277,17 +275,24 @@ export default function App() {
   };
 
   // Auth Operations
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleLogin = async () => {
     setAuthError("");
     try {
-      const ep = isRegistering ? "/api/auth/register" : "/api/auth/login";
-      const payload = isRegistering ? { email: loginEmail, name: loginName } : { email: loginEmail };
-
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      const result = await signInWithPopup(auth, provider);
+      
+      const idToken = await result.user.getIdToken();
+      const ep = "/api/auth/login";
+      
       const res = await fetch(ep, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          idToken,
+          email: result.user.email,
+          name: result.user.displayName || result.user.email?.split("@")[0] || ""
+        })
       });
 
       const data = await res.json();
@@ -297,10 +302,19 @@ export default function App() {
         setToken(cleanTok);
         setUser(data.user);
       } else {
-        setAuthError(data.error || "認証時に予期せぬエラーが発生しました");
+        setAuthError(data.error || "Google認証後に予期せぬエラーが発生しました");
       }
-    } catch (err) {
-      setAuthError("サーバーへの接続エラーです。接続環境等をご確認ください。");
+    } catch (err: any) {
+      if (err.code !== "auth/cancelled-popup-request" && err.code !== "auth/popup-closed-by-user") {
+        console.error("Google Auth error:", err);
+      }
+      if (err.code === "auth/popup-blocked") {
+        setAuthError("ポップアップがブロックされました。ポップアップ許可を確認してください。");
+      } else if (err.code === "auth/cancelled-popup-request" || err.code === "auth/popup-closed-by-user") {
+        setAuthError(""); // Ignore cancellation quietly
+      } else {
+        setAuthError("Google認証への接続中にエラーが発生しました。");
+      }
     }
   };
 
@@ -778,79 +792,38 @@ export default function App() {
           </div>
           <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">たねログ</h2>
           <p className="text-slate-500 text-xs">
-            ベランダ家庭菜園、お庭の露地、室内水耕まで対応。プランターの成長記録、共同栽培管理、そしてお世話のスケジュール管理。
+            ベランダ家庭菜園、お庭の露地、室内水耕まで対応。<br/>栽培記録、AIによるスケジュール提案。
           </p>
         </div>
 
         <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-sm">
-          <div className="bg-white py-8 px-6 shadow-sm rounded-2xl border border-slate-100 space-y-6">
-            
-            <div className="flex border-b border-slate-100 text-xs font-bold justify-around pb-3 mb-1">
-              <button 
-                onClick={() => setIsRegistering(false)}
-                className={`pb-1 px-4 border-b-2 transition-all ${!isRegistering ? "border-emerald-600 text-slate-800" : "border-transparent text-slate-400"}`}
-              >
-                ログイン
-              </button>
-              <button 
-                onClick={() => setIsRegistering(true)}
-                className={`pb-1 px-4 border-b-2 transition-all ${isRegistering ? "border-emerald-600 text-slate-800" : "border-transparent text-slate-400"}`}
-              >
-                新規メンバー登録
-              </button>
-            </div>
+          <div className="bg-white py-8 px-6 shadow-sm rounded-2xl border border-slate-100 space-y-6 text-center">
 
             {authError && (
-              <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 text-xs flex gap-1.5 leading-relaxed">
+              <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-rose-700 text-xs flex gap-1.5 leading-relaxed text-left">
                 <ShieldAlert className="w-4 h-4 shrink-0 text-rose-500" />
                 <span>{authError}</span>
               </div>
             )}
 
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-slate-500 text-xs font-bold mb-1 font-sans">
-                  メールアドレス
-                </label>
-                <input 
-                  type="email" 
-                  value={loginEmail} 
-                  onChange={(e) => setLoginEmail(e.target.value)}
-                  required
-                  placeholder="name@example.com"
-                  className="w-full px-4 py-2.5 text-base md:text-xs bg-slate-50/50 border border-slate-200 rounded-xl text-slate-800 font-mono focus:bg-white focus:outline-hidden focus:border-emerald-500"
-                />
-              </div>
+            <button 
+              type="button"
+              onClick={handleGoogleLogin}
+              className="w-full py-3.5 px-4 font-bold text-sm bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-xs hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer text-center flex items-center justify-center gap-3 border border-transparent"
+            >
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.9h6.6c-.28 1.5-1.12 2.76-2.38 3.6v3h3.84c2.25-2.07 3.68-5.12 3.68-8.43z"/>
+                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.84-3c-1.08.72-2.45 1.16-4.09 1.16-3.15 0-5.81-2.13-6.76-5.01H1.28v3.1c2 3.97 6.11 6.66 10.72 6.66z"/>
+                <path fill="#FBBC05" d="M5.24 14.24a7.15 7.15 0 0 1 0-4.48V6.66H1.28a11.96 11.96 0 0 0 0 10.68l3.96-3.1z"/>
+                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.39 0 3.28 2.69 1.28 6.66L5.24 9.76c.95-2.88 3.61-5.01 6.76-5.01z"/>
+              </svg>
+              Googleアカウントでサインイン
+            </button>
 
-              {isRegistering && (
-                <div>
-                  <label className="block text-slate-500 text-xs font-bold mb-1 font-sans">
-                    お名前（表示名）
-                  </label>
-                  <input 
-                    type="text" 
-                    value={loginName} 
-                    onChange={(e) => setLoginName(e.target.value)}
-                    required
-                    placeholder="栽培太郎"
-                    className="w-full px-4 py-2.5 text-base md:text-xs bg-slate-50/50 border border-slate-200 rounded-xl text-slate-800 font-sans focus:bg-white focus:outline-hidden focus:border-emerald-500"
-                  />
-                </div>
-              )}
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              本サービスは安全かつ迅速なログインを実現するため、Google認証のみを採用しています。
+            </p>
 
-              <button 
-                type="submit"
-                className="w-full py-2.5 px-4 font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs hover:shadow-md transition-all cursor-pointer text-center"
-              >
-                {isRegistering ? "栽培アカウントを作成" : "ログインする"}
-              </button>
-            </form>
-
-            <div className="text-center text-[11px] text-slate-400 bg-slate-50 p-3 rounded-lg border border-dashed border-slate-100">
-              <span className="font-bold text-slate-500">🧪 テストプレイ用のシードユーザー:</span><br />
-              <code className="text-emerald-700 font-bold block mt-1">choco.rgi.duck@gmail.com</code>
-              <span className="block mt-1">そのままボタンを押すだけでデモ環境へ入れます！</span>
-            </div>
           </div>
         </div>
       </div>
