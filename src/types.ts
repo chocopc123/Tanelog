@@ -34,6 +34,9 @@ export interface Plant {
   archived?: boolean;
   createdAt: string;
   updatedAt: string;
+  fertilizerBrand?: string;       // Default fertilizer type
+  fertilizerAmountMl?: number;    // Default amount
+  fertilizerDilutionRate?: number;// Default dilution rate (e.g. 500, 1000)
 }
 
 export type MemberRole = 'owner' | 'member';
@@ -59,6 +62,10 @@ export interface GrowLog {
   watered?: boolean;
   imageUrl?: string;
   imageUrls?: string[];
+  appliedFertilizer?: boolean;      // Whether fertilizer was applied in this event
+  fertilizerBrand?: string;         // Applied fertilizer brand
+  fertilizerAmountMl?: number;      // Applied amount (ml)
+  fertilizerDilutionRate?: number;  // Applied dilution rate
 }
 
 export interface PlantPhoto {

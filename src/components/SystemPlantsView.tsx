@@ -124,8 +124,26 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
   const [logEc, setLogEc] = useState("");
   const [logTemp, setLogTemp] = useState("");
   const [logNote, setLogNote] = useState("");
-  const [logWatered, setLogWatered] = useState(true);
+  const [logWatered, setLogWatered] = useState(false);
   const [logPhotoBase64s, setLogPhotoBase64s] = useState<string[]>([]);
+  const [logAppliedFertilizer, setLogAppliedFertilizer] = useState(false);
+  const [logFertilizerBrand, setLogFertilizerBrand] = useState("");
+  const [logFertilizerAmountMl, setLogFertilizerAmountMl] = useState("");
+  const [logFertilizerDilutionRate, setLogFertilizerDilutionRate] = useState("");
+
+  // Initialize default fertilizer values when plant changes or is selected
+  useEffect(() => {
+    if (selectedPlant) {
+      setLogFertilizerBrand(selectedPlant.fertilizerBrand || "");
+      setLogFertilizerAmountMl(selectedPlant.fertilizerAmountMl ? String(selectedPlant.fertilizerAmountMl) : "");
+      setLogFertilizerDilutionRate(selectedPlant.fertilizerDilutionRate ? String(selectedPlant.fertilizerDilutionRate) : "");
+    } else {
+      setLogFertilizerBrand("");
+      setLogFertilizerAmountMl("");
+      setLogFertilizerDilutionRate("");
+    }
+    setLogAppliedFertilizer(false); // Reset checkout state
+  }, [selectedPlant?.id, selectedPlant?.fertilizerBrand, selectedPlant?.fertilizerAmountMl, selectedPlant?.fertilizerDilutionRate]);
   
   // Automatic temperature fetching state
   const [fetchingTemp, setFetchingTemp] = useState(false);
@@ -219,6 +237,10 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
   const [editGrowLoggedAt, setEditGrowLoggedAt] = useState("");
   const [editGrowWatered, setEditGrowWatered] = useState(true);
   const [editGrowPhotoBase64s, setEditGrowPhotoBase64s] = useState<string[]>([]);
+  const [editGrowAppliedFertilizer, setEditGrowAppliedFertilizer] = useState(false);
+  const [editGrowFertilizerBrand, setEditGrowFertilizerBrand] = useState("");
+  const [editGrowFertilizerAmountMl, setEditGrowFertilizerAmountMl] = useState("");
+  const [editGrowFertilizerDilutionRate, setEditGrowFertilizerDilutionRate] = useState("");
 
   // Photo dynamic modal state for album
   const [selectedPhotoLog, setSelectedPhotoLog] = useState<any | null>(null);
@@ -338,6 +360,10 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
     setEditGrowLoggedAt(log.loggedAt ? log.loggedAt.split("T")[0] : new Date().toISOString().split("T")[0]);
     setEditGrowWatered(log.watered !== false);
     setEditGrowPhotoBase64s(log.imageUrls && log.imageUrls.length > 0 ? log.imageUrls : (log.imageUrl ? [log.imageUrl] : []));
+    setEditGrowAppliedFertilizer(Boolean(log.appliedFertilizer));
+    setEditGrowFertilizerBrand(log.fertilizerBrand || "");
+    setEditGrowFertilizerAmountMl(log.fertilizerAmountMl !== null && log.fertilizerAmountMl !== undefined ? String(log.fertilizerAmountMl) : "");
+    setEditGrowFertilizerDilutionRate(log.fertilizerDilutionRate !== null && log.fertilizerDilutionRate !== undefined ? String(log.fertilizerDilutionRate) : "");
   };
 
   const handleUpdateGrowLogSubmit = async (e: React.FormEvent) => {
@@ -352,7 +378,11 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
         loggedAt: editGrowLoggedAt ? new Date(editGrowLoggedAt).toISOString() : new Date().toISOString(),
         watered: editGrowWatered,
         imageUrl: editGrowPhotoBase64s.length > 0 ? editGrowPhotoBase64s[0] : undefined,
-        imageUrls: editGrowPhotoBase64s.length > 0 ? editGrowPhotoBase64s : undefined
+        imageUrls: editGrowPhotoBase64s.length > 0 ? editGrowPhotoBase64s : undefined,
+        appliedFertilizer: editGrowAppliedFertilizer,
+        fertilizerBrand: editGrowAppliedFertilizer ? editGrowFertilizerBrand : "",
+        fertilizerAmountMl: editGrowAppliedFertilizer ? editGrowFertilizerAmountMl : "",
+        fertilizerDilutionRate: editGrowAppliedFertilizer ? editGrowFertilizerDilutionRate : ""
       });
       setEditingGrowLogId(null);
       setEditGrowPhotoBase64s([]);
@@ -461,15 +491,23 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
       note: logNote,
       watered: logWatered,
       imageUrl: logPhotoBase64s.length > 0 ? logPhotoBase64s[0] : undefined,
-      imageUrls: logPhotoBase64s.length > 0 ? logPhotoBase64s : undefined
+      imageUrls: logPhotoBase64s.length > 0 ? logPhotoBase64s : undefined,
+      appliedFertilizer: logAppliedFertilizer,
+      fertilizerBrand: logAppliedFertilizer ? logFertilizerBrand : undefined,
+      fertilizerAmountMl: logAppliedFertilizer ? logFertilizerAmountMl : undefined,
+      fertilizerDilutionRate: logAppliedFertilizer ? logFertilizerDilutionRate : undefined
     });
     setLogPh("");
     setLogEc("");
     setLogTemp("");
     setLogNote("");
-    setLogWatered(true);
+    setLogWatered(false);
+    setLogAppliedFertilizer(false);
+    setLogFertilizerBrand(selectedPlant.fertilizerBrand || "");
+    setLogFertilizerAmountMl(selectedPlant.fertilizerAmountMl ? String(selectedPlant.fertilizerAmountMl) : "");
+    setLogFertilizerDilutionRate(selectedPlant.fertilizerDilutionRate ? String(selectedPlant.fertilizerDilutionRate) : "");
     setLogPhotoBase64s([]);
-    triggerToast("水質・収穫期ロギング記録を格納しました。");
+    triggerToast("水質・収穫期ロギング記録（施肥情報をマージ）を格納しました。🌱");
   };
 
   const handleAddNutSubmit = (e: React.FormEvent) => {
@@ -1421,13 +1459,6 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
               📊 栽培記録
             </button>
             <button 
-              id="tab-btn-nutrients"
-              onClick={() => setActiveTab("nutrients")}
-              className={`px-4.5 py-3 font-bold border-b-2 transition-all cursor-pointer ${activeTab === "nutrients" ? "border-emerald-600 text-emerald-800 font-extrabold" : "border-transparent text-slate-500 hover:text-slate-100"}`}
-            >
-              🧪 液肥肥料管理
-            </button>
-            <button 
               id="tab-btn-ai"
               onClick={() => setActiveTab("ai")}
               className={`px-4.5 py-3 font-bold border-b-2 transition-all cursor-pointer ${activeTab === "ai" ? "border-emerald-600 text-emerald-800 font-extrabold" : "border-transparent text-slate-500 hover:text-slate-100"}`}
@@ -1468,7 +1499,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                     {user.showPhEc !== false && (
                       <>
                         <div>
-                          <label className="block text-slate-500 text-[10.5px] font-bold mb-1">
+                          <label className="block text-slate-550 text-[10.5px] font-bold mb-1">
                             {isSoil ? "土壌酸度 pH値 (任意)" : "水素イオン指数 pH 値"}
                           </label>
                           <input 
@@ -1484,7 +1515,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                         </div>
 
                         <div>
-                          <label className="block text-slate-500 text-[10.5px] font-bold mb-1">
+                          <label className="block text-slate-550 text-[10.5px] font-bold mb-1">
                             {isSoil ? "土壌 EC値 / 栄養濃度 (任意)" : "電気伝導度 EC値 (mS/cm)"}
                           </label>
                           <input 
@@ -1502,7 +1533,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                     )}
 
                     <div>
-                      <label className="block text-slate-500 text-[10.5px] font-bold mb-1 flex justify-between items-center">
+                      <label className="block text-slate-550 text-[10.5px] font-bold mb-1 flex justify-between items-center">
                         <span>{isSoil ? "周囲気温 または 地温 (℃)" : "追加時の気温 (℃)"}</span>
                         <button
                           type="button"
@@ -1525,34 +1556,96 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                       />
                     </div>
 
-                    <div className="flex items-center gap-2 py-1 bg-white p-2 rounded-lg border border-slate-200/60">
-                      <input 
-                        type="checkbox" 
-                        id="logWatered"
-                        checked={logWatered}
-                        onChange={(e) => setLogWatered(e.target.checked)}
-                        className="w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer"
-                      />
-                      <label htmlFor="logWatered" className="text-slate-700 text-xs font-bold cursor-pointer select-none flex items-center gap-1 font-sans">
-                        💧 水やりを実施した
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label htmlFor="logWatered" className="flex items-center gap-2 py-2 px-3 bg-white hover:bg-slate-50/50 rounded-lg border border-slate-200/60 shadow-2xs cursor-pointer select-none transition-colors">
+                        <input 
+                          type="checkbox" 
+                          id="logWatered"
+                          checked={logWatered}
+                          onChange={(e) => setLogWatered(e.target.checked)}
+                          className="w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <span className="text-slate-700 text-xs font-bold flex items-center gap-1 font-sans">
+                          💧 水やりした
+                        </span>
+                      </label>
+
+                      <label htmlFor="logAppliedFertilizer" className="flex items-center gap-2 py-2 px-3 bg-white hover:bg-slate-50/50 rounded-lg border border-slate-200/60 shadow-2xs cursor-pointer select-none transition-colors">
+                        <input 
+                          type="checkbox" 
+                          id="logAppliedFertilizer"
+                          checked={logAppliedFertilizer}
+                          onChange={(e) => setLogAppliedFertilizer(e.target.checked)}
+                          className="w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <span className="text-slate-700 text-xs font-bold flex items-center gap-1 font-sans">
+                          🧪 肥料を与えた
+                        </span>
                       </label>
                     </div>
 
+                    {logAppliedFertilizer && (
+                      <div className="space-y-3 bg-emerald-50/25 p-3 rounded-xl border border-emerald-100 flex flex-col justify-start">
+                        <div className="space-y-3 pl-2 border-l-2 border-emerald-200 text-left">
+                          <div>
+                            <label className="block text-slate-550 text-[9.5px] font-bold mb-1">
+                              肥料の種類・銘柄
+                            </label>
+                            <input 
+                              type="text" 
+                              value={logFertilizerBrand}
+                              onChange={(e) => setLogFertilizerBrand(e.target.value)}
+                              placeholder="例: ハイポニカ液体肥料等"
+                              className="w-full px-2.5 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:border-indigo-500"
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-slate-550 text-[9.5px] font-bold mb-1">
+                                分量 (ml / g)
+                              </label>
+                              <input 
+                                type="number" 
+                                step="any"
+                                value={logFertilizerAmountMl}
+                                onChange={(e) => setLogFertilizerAmountMl(e.target.value)}
+                                placeholder="例: 4"
+                                className="w-full px-2.5 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-mono focus:border-indigo-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-slate-550 text-[9.5px] font-bold mb-1">
+                                希釈倍率
+                              </label>
+                              <input 
+                                type="number" 
+                                value={logFertilizerDilutionRate}
+                                onChange={(e) => setLogFertilizerDilutionRate(e.target.value)}
+                                placeholder="例: 500"
+                                className="w-full px-2.5 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-mono focus:border-indigo-500"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div>
-                      <label className="block text-slate-500 text-[10.5px] font-bold mb-1">
+                      <label className="block text-slate-550 text-[10.5px] font-bold mb-1">
                         栽培・手入れ観察メモ (任意)
                       </label>
                       <textarea 
                         value={logNote}
                         onChange={(e) => setLogNote(e.target.value)}
                         required={false}
-                        placeholder={isSoil ? "例: 土の表面が少し乾いていた。わき芽を3つ摘み取りました。一部黄色くなった下葉を除去。" : "葉の色が良くなってきた、エアーを強くした、など観察記録用のメモ"}
+                        placeholder={isSoil ? "例: 土の表面が少し乾いていた。わき芽を3つ摘み取りました。一部黄色くなった下葉を除去。" : "葉の色が良くなってきた、元気に育っている、など観察記録用のメモ"}
                         className="w-full p-2.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700 h-24 md:h-16 resize-y font-sans min-h-[85px]"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-slate-500 text-[10.5px] font-bold mb-1 flex items-center gap-1">
+                      <label className="block text-slate-555 text-[10.5px] font-bold mb-1 flex items-center gap-1">
                         📸 状況写真の添付 (複数可・任意)
                       </label>
                       {logPhotoBase64s.length > 0 && (
@@ -1688,6 +1781,13 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                                           </div>
                                         )}
                                         <div className="text-xs text-slate-600 font-sans leading-relaxed self-center">
+                                          {log.appliedFertilizer && (
+                                            <div className="mb-1">
+                                              <span className="inline-flex items-center gap-0.5 px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-extrabold rounded-md border border-emerald-100/60">
+                                                🧪 施肥: {log.fertilizerBrand || "標準"} {log.fertilizerAmountMl ? `${log.fertilizerAmountMl}ml` : ""}{log.fertilizerDilutionRate ? ` (${log.fertilizerDilutionRate}倍)` : ""}
+                                              </span>
+                                            </div>
+                                          )}
                                           {log.note || "ー"}
                                         </div>
                                       </div>
@@ -1747,6 +1847,12 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                                   ) : (
                                     <span className="px-2 py-0.5 bg-slate-50 text-slate-500 text-[10px] rounded-md border border-slate-200">
                                       🔍 観察のみ
+                                    </span>
+                                  )}
+                                  
+                                  {log.appliedFertilizer && (
+                                    <span className="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[10px] font-extrabold rounded-md border border-emerald-100 flex items-center gap-0.5">
+                                      🧪 施肥: {log.fertilizerBrand || "標準"} {log.fertilizerAmountMl ? `${log.fertilizerAmountMl}ml` : ""}{log.fertilizerDilutionRate ? `(${log.fertilizerDilutionRate}倍)` : ""}
                                     </span>
                                   )}
                                   
@@ -2243,6 +2349,92 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                   </div>
                 </div>
 
+                {/* 常用肥料お世話設定（お世話テンプレート設定） */}
+                <div id="planter-fertilizer-settings-panel" className="border border-emerald-150 rounded-2xl p-6 bg-gradient-to-br from-emerald-50/20 to-teal-50/15 space-y-4 font-sans shadow-2xs text-left">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-emerald-500/10 rounded-xl text-emerald-800 shrink-0 mt-0.5">
+                      <Sparkles className="w-5 h-5 text-emerald-600" />
+                    </div>
+                    <div className="space-y-1 text-left flex-1 font-sans">
+                      <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2 leading-none">
+                        常用肥料お世話設定（テンプレート）
+                        <span className="text-[10px] text-emerald-850 bg-emerald-50 border border-emerald-100 px-2.5 py-0.5 rounded-full font-bold">
+                          植物ごとに設定
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-600 leading-relaxed font-sans mt-2">
+                        この植物に普段与えている肥料の種類（銘柄）や、標準的な一回分の分量を登録できます。<br />
+                        これを登録しておくと、栽培記録（お世話ログ）を作成する際に<strong>ワンクリックで肥料投与記録をマージ</strong>できます。
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    const brand = formData.get("fBrand") as string;
+                    const amount = formData.get("fAmount") as string;
+                    const rate = formData.get("fRate") as string;
+                    
+                    try {
+                      await onUpdatePlant(selectedPlant.id, {
+                        ...selectedPlant,
+                        fertilizerBrand: brand,
+                        fertilizerAmountMl: amount ? parseFloat(amount) : null,
+                        fertilizerDilutionRate: rate ? parseInt(rate, 10) : null
+                      });
+                      
+                      triggerToast("常用肥料テンプレートを設定に保存しました！🧪");
+                    } catch (error) {
+                      console.error(error);
+                      triggerToast("保存中にエラーが発生しました。");
+                    }
+                  }} className="pt-2 grid grid-cols-1 md:grid-cols-3 gap-4 font-sans text-xs">
+                    <div className="space-y-1.5 text-left">
+                      <label className="font-bold text-slate-700">肥料の種類・銘柄</label>
+                      <input 
+                        type="text" 
+                        name="fBrand"
+                        defaultValue={selectedPlant.fertilizerBrand || ""}
+                        placeholder="例: ハイポニカ、マイガーデン等"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none text-slate-700"
+                      />
+                    </div>
+                    
+                    <div className="space-y-1.5 text-left">
+                      <label className="font-bold text-slate-700">一回あたりの分量 (ml / グラム)</label>
+                      <input 
+                        type="number" 
+                        step="any"
+                        name="fAmount"
+                        defaultValue={selectedPlant.fertilizerAmountMl || ""}
+                        placeholder="例: 4"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none text-slate-700 font-mono"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5 text-left">
+                      <label className="font-bold text-slate-700">希釈倍率 (※液肥などの倍率)</label>
+                      <input 
+                        type="number" 
+                        name="fRate"
+                        defaultValue={selectedPlant.fertilizerDilutionRate || ""}
+                        placeholder="例: 500 (固形時は空欄)"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none text-slate-700 font-mono"
+                      />
+                    </div>
+                    
+                    <div className="md:col-span-3 flex justify-end">
+                      <button
+                        type="submit"
+                        className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:scale-[0.98] text-white text-xs font-bold rounded-xl transition-all shadow-xs shrink-0 cursor-pointer font-sans"
+                      >
+                        💾 常用肥料・設定を保存する
+                      </button>
+                    </div>
+                  </form>
+                </div>
+
                 <div id="planter-profile-settings-panel" className="border border-slate-150 rounded-2xl p-6 bg-slate-50/50 space-y-4 font-sans">
                   <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3 font-sans">
                     <Settings className="w-4 h-4 text-slate-550" />
@@ -2350,30 +2542,89 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
 
             {/* スクロール可能なコンテンツエリア */}
             <div className="p-6 overflow-y-auto space-y-5 flex-1 min-h-0 text-xs text-slate-705">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-[10.5px] font-bold text-slate-500 mb-1 flex items-center gap-1">
+                  <label className="block text-[10.5px] font-bold text-slate-500 mb-1 flex items-center gap-1 font-sans">
                     📅 測定日時
                   </label>
                   <input 
                     type="date" 
                     value={editGrowLoggedAt} 
                     onChange={(e) => setEditGrowLoggedAt(e.target.value)} 
-                    className="w-full max-w-[130px] text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden font-sans transition-all"
+                    className="w-full max-w-[150px] text-base md:text-sm p-2.5 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden font-sans transition-all"
                   />
                 </div>
-                <div className="flex items-center gap-2 md:pt-6">
-                  <label className="flex items-center gap-2.5 p-2 bg-indigo-50/40 hover:bg-indigo-50 border border-indigo-100/30 rounded-lg w-full cursor-pointer transition-colors select-none">
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label className="flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg w-full cursor-pointer transition-colors select-none">
                     <input 
                       type="checkbox" 
                       id="editGrowWatered-modal"
                       checked={editGrowWatered} 
                       onChange={(e) => setEditGrowWatered(e.target.checked)} 
-                      className="w-5 h-5 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer shrink-0"
+                      className="w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer shrink-0"
                     />
-                    <span className="text-xs text-slate-700 font-extrabold cursor-pointer">水やりを実施した（お世話マーク）</span>
+                    <span className="text-xs text-slate-700 font-bold cursor-pointer">💧 水やりした</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 px-3 py-2 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg w-full cursor-pointer transition-colors select-none">
+                    <input 
+                      type="checkbox" 
+                      id="editGrowAppliedFertilizer"
+                      checked={editGrowAppliedFertilizer}
+                      onChange={(e) => setEditGrowAppliedFertilizer(e.target.checked)}
+                      className="w-4 h-4 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer shrink-0"
+                    />
+                    <span className="text-xs text-slate-700 font-bold cursor-pointer">🧪 肥料を与えた</span>
                   </label>
                 </div>
+
+                {editGrowAppliedFertilizer && (
+                  <div className="space-y-3 bg-emerald-50/25 p-3 rounded-xl border border-emerald-100 flex flex-col justify-start">
+                    <div className="space-y-3 pl-2 border-l-2 border-emerald-200 text-left font-sans">
+                      <div>
+                        <label className="block text-slate-550 text-[9.5px] font-bold mb-1">
+                          肥料の種類・銘柄
+                        </label>
+                        <input 
+                          type="text" 
+                          value={editGrowFertilizerBrand}
+                          onChange={(e) => setEditGrowFertilizerBrand(e.target.value)}
+                          placeholder="例: ハイポニカ液体肥料等"
+                          className="w-full px-2.5 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700 focus:border-emerald-500"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-slate-550 text-[9.5px] font-bold mb-1">
+                            分量 (ml / g)
+                          </label>
+                          <input 
+                            type="number" 
+                            step="any"
+                            value={editGrowFertilizerAmountMl}
+                            onChange={(e) => setEditGrowFertilizerAmountMl(e.target.value)}
+                            placeholder="例: 4"
+                            className="w-full px-2.5 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-mono focus:border-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-slate-550 text-[9.5px] font-bold mb-1">
+                            希釈倍率
+                          </label>
+                          <input 
+                            type="number" 
+                            value={editGrowFertilizerDilutionRate}
+                            onChange={(e) => setEditGrowFertilizerDilutionRate(e.target.value)}
+                            placeholder="例: 500"
+                            className="w-full px-2.5 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700 font-mono focus:border-indigo-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {user.showPhEc !== false ? (
@@ -2446,6 +2697,8 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                   className="w-full text-base md:text-sm p-3 bg-slate-50 hover:bg-white border border-slate-200 rounded-lg focus:border-indigo-500 focus:bg-white focus:outline-hidden min-h-[120px] h-auto resize-y font-sans transition-all leading-relaxed"
                 />
               </div>
+
+
 
               <div>
                 <label className="block text-[10.5px] font-bold text-slate-500 mb-1 flex items-center gap-1">

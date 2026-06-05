@@ -366,7 +366,7 @@ export default function App() {
   };
 
   // Plant operations
-  const handleCreatePlant = async (payload: { systemId: string, name: string, variety: string, stage: PlantStage, sowingDate: string, expectedHarvestDate: string }) => {
+  const handleCreatePlant = async (payload: { systemId: string, name: string, variety: string, stage: PlantStage, sowingDate: string, expectedHarvestDate: string, fertilizerBrand?: string, fertilizerAmountMl?: string, fertilizerDilutionRate?: string }) => {
     try {
       const res = await fetch("/api/plants", {
         method: "POST",
@@ -440,7 +440,7 @@ export default function App() {
   };
 
   // Logs adding
-  const handleAddGrowLog = async (payload: { plantId: string, ph: string, ec: string, waterTemp: string, note: string, watered?: boolean, imageUrl?: string, imageUrls?: string[] }) => {
+  const handleAddGrowLog = async (payload: { plantId: string, ph: string, ec: string, waterTemp: string, note: string, watered?: boolean, imageUrl?: string, imageUrls?: string[], appliedFertilizer?: boolean, fertilizerBrand?: string, fertilizerAmountMl?: string, fertilizerDilutionRate?: string }) => {
     try {
       const res = await fetch("/api/grow-logs", {
         method: "POST",
@@ -902,7 +902,7 @@ export default function App() {
               onClick={() => handleTabClick("settings")}
               className={`px-4 py-2 font-bold rounded-xl flex items-center gap-1.5 transition-all ${activeTab === 'settings' ? 'bg-emerald-50 text-emerald-800 font-extrabold' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
             >
-              <Settings className="w-4 h-4" /> 設定 / 気候地域
+              <Settings className="w-4 h-4" /> 設定
             </button>
           </nav>
 
@@ -946,7 +946,7 @@ export default function App() {
             onClick={() => handleTabClick("settings")}
             className={`flex-1 py-1.5 text-center flex items-center justify-center gap-1 ${activeTab === 'settings' ? 'text-emerald-700 bg-emerald-50/50' : 'hover:text-slate-805'}`}
           >
-            気候・設定
+            設定
           </button>
         </div>
       </header>

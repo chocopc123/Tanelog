@@ -89,6 +89,38 @@ function readDB(): DBStructure {
     parsed.growLogs = parsed.growLogs || [];
     parsed.plantPhotos = parsed.plantPhotos || [];
     parsed.nutrientLogs = parsed.nutrientLogs || [];
+
+    // Auto-migrate original independent nutrientLogs into growLogs
+    if (parsed.nutrientLogs && parsed.nutrientLogs.length > 0) {
+      for (const nl of parsed.nutrientLogs) {
+        const alreadyMerged = parsed.growLogs.some((gl: any) => 
+          gl.plantId === nl.plantId && 
+          gl.appliedFertilizer && 
+          gl.fertilizerBrand === nl.brand && 
+          Math.abs(new Date(gl.loggedAt || gl.createdAt).getTime() - new Date(nl.appliedAt).getTime()) < 60000
+        );
+        if (!alreadyMerged) {
+          parsed.growLogs.push({
+            id: "log-migrated-" + nl.id + "-" + Math.random().toString(36).substr(2, 4),
+            plantId: nl.plantId,
+            postedBy: nl.postedBy,
+            ph: null,
+            ec: null,
+            waterTemp: null,
+            note: nl.note ? `${nl.note} (※施肥データから自動マージ)` : "肥料を投与しました。(※施肥データから自動マージ)",
+            loggedAt: nl.appliedAt,
+            watered: true,
+            appliedFertilizer: true,
+            fertilizerBrand: nl.brand,
+            fertilizerAmountMl: nl.amountMl,
+            fertilizerDilutionRate: nl.dilutionRate === 1 ? undefined : nl.dilutionRate
+          });
+        }
+      }
+      parsed.nutrientLogs = [];
+      fs.writeFileSync(DB_PATH, JSON.stringify(parsed, null, 2), "utf8");
+    }
+
     parsed.chatMessages = parsed.chatMessages || [];
     parsed.scheduleProposals = parsed.scheduleProposals || [];
     parsed.weatherAdviceCache = parsed.weatherAdviceCache || {};
@@ -181,7 +213,10 @@ function createSeedData(): DBStructure {
     sowingDate: "2026-05-10",
     expectedHarvestDate: "2026-06-15",
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    fertilizerBrand: "ハイポニカ液体肥料 (A液+B液)",
+    fertilizerAmountMl: 4,
+    fertilizerDilutionRate: 500
   };
 
   const plant2: Plant = {
@@ -194,7 +229,9 @@ function createSeedData(): DBStructure {
     sowingDate: "2026-04-15",
     expectedHarvestDate: "2026-07-15",
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    fertilizerBrand: "マイガーデンベジフル (野菜用固形化成肥料)",
+    fertilizerAmountMl: 15
   };
 
   const plant3: Plant = {
@@ -207,7 +244,10 @@ function createSeedData(): DBStructure {
     sowingDate: "2026-04-20",
     expectedHarvestDate: "2026-06-25",
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    fertilizerBrand: "ハイポニカ液体肥料 (A液+B液)",
+    fertilizerAmountMl: 2,
+    fertilizerDilutionRate: 500
   };
 
   // Planter Collaboration members
@@ -285,27 +325,36 @@ function createSeedData(): DBStructure {
     loggedAt: new Date(Date.now() - 24 * 3600_000).toISOString()
   };
 
-  // Nutrient & Fertilizer Logs (Japanese fertilizer brands: Liquid water formulation OR Slow-release soil granules)
-  const nLog1: NutrientLog = {
-    id: "nlog-1",
+  // Merged Fertilizer / Nutrient Logs into Grow Logs
+  const log4: GrowLog = {
+    id: "log-4",
     plantId: "plant-1",
     postedBy: "user-1",
-    brand: "ハイポニカ液体肥料 (A液+B液)",
-    dilutionRate: 500,
-    amountMl: 4,
+    ph: 6.3,
+    ec: 1.5,
+    waterTemp: 22.0,
     note: "水耕の基準希釈500倍。水2Lに対してA液4ml、B液4mlを追加しました。",
-    appliedAt: new Date(Date.now() - 5 * 24 * 3600_000).toISOString()
+    loggedAt: new Date(Date.now() - 5 * 24 * 3600_000).toISOString(),
+    watered: true,
+    appliedFertilizer: true,
+    fertilizerBrand: "ハイポニカ液体肥料 (A液+B液)",
+    fertilizerAmountMl: 4,
+    fertilizerDilutionRate: 500
   };
 
-  const nLog2: NutrientLog = {
-    id: "nlog-2",
+  const log5: GrowLog = {
+    id: "log-5",
     plantId: "plant-2",
     postedBy: "user-1",
-    brand: "マイガーデンベジフル (野菜用固形化成肥料)",
-    dilutionRate: 1, // Traditional fertilizer is solid, not diluted
-    amountMl: 15, // 15 grams or units
+    ph: null,
+    ec: null,
+    waterTemp: null,
     note: "プランター内のミニトマト株元に、固形化成肥料15gを追肥し、周りの土と軽く混ぜ合わせました。",
-    appliedAt: new Date(Date.now() - 3 * 24 * 3600_000).toISOString()
+    loggedAt: new Date(Date.now() - 3 * 24 * 3600_000).toISOString(),
+    watered: true,
+    appliedFertilizer: true,
+    fertilizerBrand: "マイガーデンベジフル (野菜用固形化成肥料)",
+    fertilizerAmountMl: 15
   };
 
   // Schedule Proposals for multiple types of fields: soil irrigation versus hydro pH
@@ -358,9 +407,9 @@ function createSeedData(): DBStructure {
     systems: [sys1, sys2, sys3],
     plants: [plant1, plant2, plant3],
     systemMembers: [member1, member2, member3, member4, member5],
-    growLogs: [log1, log2, log3],
+    growLogs: [log1, log2, log3, log4, log5],
     plantPhotos: [seedPhoto1],
-    nutrientLogs: [nLog1, nLog2],
+    nutrientLogs: [],
     chatMessages: [],
     scheduleProposals: [prop1, prop2, prop3]
   };
@@ -1278,13 +1327,21 @@ app.get("/api/plants/:id", (req, res) => {
     .filter(ph => ph.plantId === id)
     .sort((a, b) => new Date(b.takenAt).getTime() - new Date(a.takenAt).getTime());
     
-  const nutrients = currentDb.nutrientLogs
-    .filter(nl => nl.plantId === id)
+  const nutrients = logs
+    .filter(gl => gl.appliedFertilizer)
     .map(l => {
-      const poster = currentDb.users.find(u => u.id === l.postedBy);
-      return { ...l, postedByName: poster ? poster.name : "不明" };
-    })
-    .sort((a, b) => new Date(b.appliedAt).getTime() - new Date(a.appliedAt).getTime());
+      return {
+        id: "fg-" + l.id,
+        plantId: l.plantId,
+        postedBy: l.postedBy,
+        postedByName: l.postedByName,
+        brand: l.fertilizerBrand || "一般肥料",
+        dilutionRate: l.fertilizerDilutionRate || 1, // 1 means solid or direct input
+        amountMl: l.fertilizerAmountMl || 0,
+        note: l.note,
+        appliedAt: l.loggedAt
+      };
+    });
     
   const proposals = currentDb.scheduleProposals
     .filter(sp => sp.plantId === id)
@@ -1339,7 +1396,7 @@ app.get("/api/plants/:id", (req, res) => {
 
 app.post("/api/plants", (req, res) => {
   const user = getUserContext(req);
-  const { systemId, name, variety, stage, sowingDate, expectedHarvestDate } = req.body;
+  const { systemId, name, variety, stage, sowingDate, expectedHarvestDate, fertilizerBrand, fertilizerAmountMl, fertilizerDilutionRate } = req.body;
   if (!systemId || !name) {
     return res.status(400).json({ error: "systemId and Name are required" });
   }
@@ -1360,7 +1417,10 @@ app.post("/api/plants", (req, res) => {
     sowingDate: sowingDate || new Date().toISOString().split("T")[0],
     expectedHarvestDate: expectedHarvestDate || new Date(Date.now() + 30 * 24 * 3600_000).toISOString().split("T")[0],
     createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    updatedAt: new Date().toISOString(),
+    fertilizerBrand: fertilizerBrand || undefined,
+    fertilizerAmountMl: fertilizerAmountMl !== "" && fertilizerAmountMl !== undefined ? parseFloat(fertilizerAmountMl) : undefined,
+    fertilizerDilutionRate: fertilizerDilutionRate !== "" && fertilizerDilutionRate !== undefined ? parseInt(fertilizerDilutionRate, 10) : undefined
   };
   
   currentDb.plants.push(newPlant);
@@ -1371,7 +1431,7 @@ app.post("/api/plants", (req, res) => {
 app.put("/api/plants/:id", (req, res) => {
   const user = getUserContext(req);
   const { id } = req.params;
-  const { name, variety, stage, sowingDate, expectedHarvestDate, systemId, archived } = req.body;
+  const { name, variety, stage, sowingDate, expectedHarvestDate, systemId, archived, fertilizerBrand, fertilizerAmountMl, fertilizerDilutionRate } = req.body;
   
   const currentDb = readDB();
   const idx = currentDb.plants.findIndex(p => p.id === id);
@@ -1391,6 +1451,12 @@ app.put("/api/plants/:id", (req, res) => {
   if (expectedHarvestDate) currentDb.plants[idx].expectedHarvestDate = expectedHarvestDate;
   if (systemId) currentDb.plants[idx].systemId = systemId;
   if (archived !== undefined) currentDb.plants[idx].archived = Boolean(archived);
+  
+  // Always update if provided or explicitly set (even to null/empty values for resetting template)
+  if (fertilizerBrand !== undefined) currentDb.plants[idx].fertilizerBrand = fertilizerBrand || undefined;
+  if (fertilizerAmountMl !== undefined) currentDb.plants[idx].fertilizerAmountMl = (fertilizerAmountMl !== "" && fertilizerAmountMl !== null) ? parseFloat(fertilizerAmountMl) : undefined;
+  if (fertilizerDilutionRate !== undefined) currentDb.plants[idx].fertilizerDilutionRate = (fertilizerDilutionRate !== "" && fertilizerDilutionRate !== null) ? parseInt(fertilizerDilutionRate, 10) : undefined;
+
   currentDb.plants[idx].updatedAt = new Date().toISOString();
   
   writeDB(currentDb);
@@ -1788,7 +1854,7 @@ app.put("/api/plants/:id/transfer-owner", (req, res) => {
 // --- GROW LOGS ENDPOINTS ---
 app.post("/api/grow-logs", (req, res) => {
   const user = getUserContext(req);
-  const { plantId, ph, ec, waterTemp, note, loggedAt, watered, imageUrl, imageUrls } = req.body;
+  const { plantId, ph, ec, waterTemp, note, loggedAt, watered, imageUrl, imageUrls, appliedFertilizer, fertilizerBrand, fertilizerAmountMl, fertilizerDilutionRate } = req.body;
   if (!plantId) {
     return res.status(400).json({ error: "plantId is required" });
   }
@@ -1803,14 +1869,18 @@ app.post("/api/grow-logs", (req, res) => {
     id: "log-" + Date.now(),
     plantId,
     postedBy: user.id,
-    ph: ph !== "" && ph !== undefined ? parseFloat(ph) : null,
-    ec: ec !== "" && ec !== undefined ? parseFloat(ec) : null,
-    waterTemp: waterTemp !== "" && waterTemp !== undefined ? parseFloat(waterTemp) : null,
+    ph: ph !== "" && ph !== undefined && ph !== null ? parseFloat(ph) : null,
+    ec: ec !== "" && ec !== undefined && ec !== null ? parseFloat(ec) : null,
+    waterTemp: waterTemp !== "" && waterTemp !== undefined && waterTemp !== null ? parseFloat(waterTemp) : null,
     note: note || "",
     loggedAt: loggedAt || new Date().toISOString(),
     watered: watered !== undefined ? Boolean(watered) : true,
     imageUrl: imageUrl || undefined,
-    imageUrls: imageUrls || undefined
+    imageUrls: imageUrls || undefined,
+    appliedFertilizer: appliedFertilizer !== undefined ? Boolean(appliedFertilizer) : undefined,
+    fertilizerBrand: fertilizerBrand || undefined,
+    fertilizerAmountMl: fertilizerAmountMl !== "" && fertilizerAmountMl !== undefined && fertilizerAmountMl !== null ? parseFloat(fertilizerAmountMl) : undefined,
+    fertilizerDilutionRate: fertilizerDilutionRate !== "" && fertilizerDilutionRate !== undefined && fertilizerDilutionRate !== null ? parseInt(fertilizerDilutionRate, 10) : undefined
   };
   
   currentDb.growLogs.push(newLog);
@@ -1821,7 +1891,7 @@ app.post("/api/grow-logs", (req, res) => {
 app.put("/api/grow-logs/:id", (req, res) => {
   const user = getUserContext(req);
   const { id } = req.params;
-  const { ph, ec, waterTemp, note, loggedAt, watered, imageUrl, imageUrls } = req.body;
+  const { ph, ec, waterTemp, note, loggedAt, watered, imageUrl, imageUrls, appliedFertilizer, fertilizerBrand, fertilizerAmountMl, fertilizerDilutionRate } = req.body;
 
   const currentDb = readDB();
   const idx = currentDb.growLogs.findIndex(l => l.id === id);
@@ -1844,6 +1914,15 @@ app.put("/api/grow-logs/:id", (req, res) => {
   if (ec !== undefined) currentDb.growLogs[idx].ec = ec !== "" && ec !== null ? parseFloat(ec) : null;
   if (waterTemp !== undefined) currentDb.growLogs[idx].waterTemp = waterTemp !== "" && waterTemp !== null ? parseFloat(waterTemp) : null;
   if (note !== undefined) currentDb.growLogs[idx].note = note;
+  if (loggedAt !== undefined) currentDb.growLogs[idx].loggedAt = loggedAt;
+  if (watered !== undefined) currentDb.growLogs[idx].watered = Boolean(watered);
+  if (imageUrl !== undefined) currentDb.growLogs[idx].imageUrl = imageUrl;
+  if (imageUrls !== undefined) currentDb.growLogs[idx].imageUrls = imageUrls;
+  
+  if (appliedFertilizer !== undefined) currentDb.growLogs[idx].appliedFertilizer = Boolean(appliedFertilizer);
+  if (fertilizerBrand !== undefined) currentDb.growLogs[idx].fertilizerBrand = fertilizerBrand;
+  if (fertilizerAmountMl !== undefined) currentDb.growLogs[idx].fertilizerAmountMl = fertilizerAmountMl !== "" && fertilizerAmountMl !== null ? parseFloat(fertilizerAmountMl) : undefined;
+  if (fertilizerDilutionRate !== undefined) currentDb.growLogs[idx].fertilizerDilutionRate = fertilizerDilutionRate !== "" && fertilizerDilutionRate !== null ? parseInt(fertilizerDilutionRate, 10) : undefined;
 
   writeDB(currentDb);
   res.json(currentDb.growLogs[idx]);
