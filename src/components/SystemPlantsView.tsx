@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from "react";
+import { useScrollToTop } from "../hooks/useScrollToTop";
+import { ActiveArchivedTabs } from "./ActiveArchivedTabs";
 import { motion, AnimatePresence } from "motion/react";
 import { 
   User, System, Plant, GrowLog, PlantPhoto, NutrientLog, ChatMessage, MemberRole, SystemType, PlantStage, HarvestPrediction 
@@ -96,7 +98,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
   const [newPlantHarvest, setNewPlantHarvest] = useState("2026-07-03");
 
   // Inside single plant details tabs
-  const [activeTab, setActiveTab] = useState<"logs" | "nutrients" | "ai" | "photos" | "coop" | "settings">("logs");
+  const [activeTab, setActiveTab] = useState<"logs" | "nutrients" | "ai" | "photos" | "settings">("logs");
 
   // Log Inputs
   const [logPh, setLogPh] = useState("");
@@ -150,10 +152,20 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
 
   // System-level collaboration states
   const [activeSystemMembersId, setActiveSystemMembersId] = useState<string | null>(null);
+  const [activeSystemSettingsId, setActiveSystemSettingsId] = useState<string | null>(null);
+  const [sysSettingsTab, setSysSettingsTab] = useState<"coop" | "management">("coop");
   const [sysInviteEmails, setSysInviteEmails] = useState<{ [systemId: string]: string }>({});
 
   // Tab for Active / Archived
   const [viewArchived, setViewArchived] = useState(false);
+
+  // ページ遷移系アクションのスクロールリセットカスタムフック
+  useScrollToTop([
+    selectedPlant?.id,
+    activeSystemSettingsId,
+    showAddSys,
+    showAddPlant,
+  ]);
 
   // Custom confirmation modal state
   const [showConfirm, setShowConfirm] = useState(false);
@@ -546,7 +558,315 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
       )}
 
       {/* NO SELECTED PLANT DETAILED PROFILE (SHOW SYSTEMS & PLANTS GRID LISTING) */}
-      {!selectedPlant ? (
+      {activeSystemSettingsId ? (
+        (() => {
+          const sys = systems.find(s => s.id === activeSystemSettingsId);
+          if (!sys) {
+            setTimeout(() => setActiveSystemSettingsId(null), 0);
+            return null;
+          }
+
+          const isOwner = sys.currentUserRole === "owner" || !sys.members?.some((m: any) => m.userId === user?.id && m.role === "owner");
+          
+          return (
+            <div className="space-y-6 animate-in fade-in duration-200">
+              
+              {/* Header Box / Return */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 rounded-2xl border border-slate-100 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <button 
+                    type="button"
+                    onClick={() => setActiveSystemSettingsId(null)}
+                    className="p-2 hover:bg-slate-50 border border-slate-150 rounded-xl text-slate-600 cursor-pointer transition-colors flex items-center justify-center shrink-0"
+                    title="プランター一覧に戻る"
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <div className="text-left">
+                    <div className="text-[10px] uppercase font-mono tracking-wider font-bold text-slate-400">
+                      プランター設定・管理
+                    </div>
+                    <h2 className="text-lg font-extrabold text-slate-800 tracking-tight mt-0.5 flex items-center gap-1.5">
+                      ⚙️ {sys.name} の設定
+                    </h2>
+                  </div>
+                </div>
+              </div>
+
+              {/* プランター設定のタブナビゲーション */}
+              <div className="flex border-b border-slate-200 gap-1 overflow-x-auto scrollbar-none font-sans">
+                <button
+                  type="button"
+                  id="sys-tab-coop"
+                  onClick={() => setSysSettingsTab("coop")}
+                  className={`px-5 py-3 text-xs md:text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
+                    sysSettingsTab === "coop"
+                      ? "border-emerald-600 text-emerald-800 font-extrabold"
+                      : "border-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <Users className="w-4 h-4 text-emerald-600" />
+                  <span>共同栽培・共有設定</span>
+                </button>
+                <button
+                  type="button"
+                  id="sys-tab-management"
+                  onClick={() => setSysSettingsTab("management")}
+                  className={`px-5 py-3 text-xs md:text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-2 shrink-0 ${
+                    sysSettingsTab === "management"
+                      ? "border-emerald-600 text-emerald-800 font-extrabold"
+                      : "border-transparent text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  <Settings className="w-4 h-4 text-slate-500" />
+                  <span>プランター管理設定</span>
+                </button>
+              </div>
+
+              {/* 1. Collaboration / Members Settings Card */}
+              {sysSettingsTab === "coop" && (
+                <div className="border border-slate-100 rounded-2xl p-6 bg-white space-y-4 text-left shadow-xs animate-in fade-in duration-200">
+                  <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                    <Users className="w-4 h-4 text-emerald-600" />
+                    共同栽培・共有（お手伝い）設定
+                  </h3>
+                  
+                  <div className="bg-teal-50/40 p-4.5 rounded-2xl border border-teal-100/50 flex gap-3 text-xs leading-relaxed text-teal-900">
+                    <Users className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1 w-full">
+                      <h4 className="font-extrabold text-teal-850">プランター共同栽培・共有機能</h4>
+                      <p className="text-slate-600 font-sans leading-relaxed">
+                        共有は<strong>プランター（栽培環境・鉢）ごと</strong>行われます。招待したメンバーは、このプランター「<span className="font-bold text-teal-950">{sys.name}</span>」に登録されているすべての植物の成長ログ、施肥・お世話スケジュール、AIチャット診断ログをリアルタイムで共同編集・管理できるようになります。
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-2">
+                    
+                    {/* Current Active cultivation members lists */}
+                    <div className="space-y-4">
+                      <h4 className="font-extrabold text-slate-800 text-xs">プランター栽培メンバー ({sys.members?.length || 1})</h4>
+                      
+                      <div className="space-y-2.5 font-sans">
+                        {sys.members?.map((mem: any, idx: number) => {
+                          const isMyself = mem.userId === user?.id;
+                          const isOwner = sys.currentUserRole === "owner";
+                          const showActionBtn = (!isMyself && isOwner) || (isMyself && mem.role !== "owner");
+                          
+                          return (
+                            <div key={mem.userId || idx} className="p-3 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
+                              <div className="space-y-0.5 flex-1 min-w-0 pr-2">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-xs text-slate-800 truncate">{mem.name}</span>
+                                  <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shrink-0 ${
+                                    mem.role === "owner" ? "bg-amber-50 text-amber-800 border border-amber-100" : "bg-teal-50 text-teal-800 border border-teal-100"
+                                  }`}>
+                                    {mem.role === "owner" ? "オーナー" : "お手伝い"}
+                                  </span>
+                                  {isMyself && <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1 rounded shrink-0">あなた</span>}
+                                </div>
+                                <span className="text-[10px] text-slate-400 break-all block truncate">{mem.email}</span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {mem.role === "owner" && (
+                                  <span className="text-[10px] font-mono font-bold text-slate-500 mr-1 flex items-center gap-1">
+                                    👑 オーナー
+                                  </span>
+                                )}
+                                
+                                {/* Transfer ownership button */}
+                                {isOwner && !isMyself && mem.role !== "owner" && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      requestConfirm(
+                                        "オーナー権限の譲渡",
+                                        `本当に「${mem.name}」さんに、このプランター「${sys.name}」のオーナー（代表権）を譲渡しますか？\n\n※譲渡後、あなた自身は共同栽培メンバー（お手伝い）となり、プランターの削除や他のメンバーの解任、オーナー権限の変更操作は行えなくなります。`,
+                                        () => {
+                                          onTransferOwnership(sys.id, mem.userId);
+                                          triggerToast(`「${mem.name}」さんにオーナー権限を譲渡しました。`);
+                                        }
+                                      );
+                                    }}
+                                    className="p-1 px-1.5 text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-100 rounded-lg transition-all font-bold cursor-pointer"
+                                    title="オーナー権限を他のメンバーに譲渡します"
+                                  >
+                                    オーナー譲渡
+                                  </button>
+                                )}
+
+                                {showActionBtn && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const confirmTitle = isMyself ? "プランターの共同栽培から退出" : "メンバーの解任";
+                                      const confirmMsg = isMyself
+                                        ? `本当にこのプランター（${sys.name}）の共同栽培メンバーから退出しますか？共有されている全ての植物から退出となります。`
+                                        : `本当に「${mem.name}」さんをこのプランター（${sys.name}）の共同栽培メンバーから解任（削除）しますか？`;
+                                      
+                                      requestConfirm(
+                                        confirmTitle,
+                                        confirmMsg,
+                                        () => {
+                                          onRemoveMember(sys.id, mem.userId);
+                                          triggerToast(isMyself ? "共同栽培から退出しました。" : `「${mem.name}」さんを解任しました。`);
+                                          if (isMyself) {
+                                            setActiveSystemSettingsId(null);
+                                          }
+                                        }
+                                      );
+                                    }}
+                                    className="p-1 px-1.5 text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded-lg transition-all font-bold cursor-pointer"
+                                    title={isMyself ? "退出する" : "解任する"}
+                                  >
+                                    {isMyself ? "🥾 退出" : "✕ 解任"}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Cultivator invitation form section */}
+                    <div className="space-y-4 font-sans">
+                      <h4 className="font-extrabold text-slate-800 text-xs text-left">プランター共有メンバーの招待</h4>
+                      
+                      <form 
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          const email = sysInviteEmails[sys.id] || "";
+                          if (!email) return;
+                          onInviteMember(sys.id, email);
+                          setSysInviteEmails(prev => ({ ...prev, [sys.id]: "" }));
+                        }} 
+                        className="bg-slate-50 border border-slate-100 p-5 rounded-2xl space-y-4"
+                      >
+                        <div className="text-left">
+                          <label className="block text-slate-500 text-[10.5px] font-bold mb-1.5 flex items-center gap-1">
+                            <span>📧</span> 招待するパートナーのメールアドレス
+                          </label>
+                          <input 
+                            type="email"
+                            required
+                            value={sysInviteEmails[sys.id] || ""}
+                            onChange={(e) => setSysInviteEmails(prev => ({ ...prev, [sys.id]: e.target.value }))}
+                            placeholder="例: companion@example.com"
+                            className="w-full px-3 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700"
+                          />
+                          <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
+                            ※招待を送信すると、お相手のアカウントからこのプランターおよび中のすべての植物にアクセスできるようになります。
+                          </p>
+                        </div>
+                        
+                        <button 
+                          type="submit"
+                          className="w-full py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <span>👥</span> プランター全体を共同栽培する
+                        </button>
+                      </form>
+                    </div>
+
+                  </div>
+                </div>
+              )}
+
+              {/* 2. Management settings Card */}
+              {sysSettingsTab === "management" && (
+                <div className="border border-slate-100 rounded-2xl p-6 bg-white space-y-4 text-left shadow-xs animate-in fade-in duration-200">
+                  <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
+                    <Settings className="w-4 h-4 text-slate-500" />
+                    プランター管理設定
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                    プランターの稼働状態（一時休止・稼働再開）や、データの完全な削除を行うことができます。
+                  </p>
+
+                  <div className="border-t border-slate-150/40 pt-5 space-y-5">
+                    {/* Water / pause active system */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                      <div className="space-y-1">
+                        <h4 className="text-xs font-bold text-slate-755 flex items-center gap-1.5 font-sans">
+                          <span>⏸️</span> プランターの稼働切替（一時休止/再開）
+                        </h4>
+                        <p className="text-[11px] text-slate-500 leading-relaxed font-sans">
+                          {sys.suspended 
+                            ? "現在、このプランターは一時休止中です。再開するとリストに再表示され、再び植物を追加できます。" 
+                            : "プランターを一時休止すると、現在栽培中の植物はすべて『栽培完了・アーカイブ』へ安全に移動され、プランター全体が非表示状態になります（データは削除されません）。"}
+                        </p>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          if (sys.suspended) {
+                            requestConfirm(
+                              "プランターの稼働再開",
+                              `本当にこのプランター「${sys.name}」の稼働を再開しますか？`,
+                              () => {
+                                onUpdateSystem(sys.id, { suspended: false });
+                                triggerToast(`「${sys.name}」の稼働を再開しました！`);
+                              }
+                            );
+                          } else {
+                            requestConfirm(
+                              "プランターの一時休止",
+                              `本当にこのプランター「${sys.name}」を一時休止しますか？現在栽培中の植物はすべて『栽培完了・アーカイブ』へ安全に移動されます（データは削除されません）。`,
+                              () => {
+                                onUpdateSystem(sys.id, { suspended: true });
+                                triggerToast(`「${sys.name}」を休止し、すべての植物をアーカイブ化しました。`);
+                              }
+                            );
+                          }
+                        }}
+                        className={`sm:w-auto w-full px-4 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 hover:scale-[1.01] transition-all rounded-xl cursor-pointer border shrink-0 ${
+                          sys.suspended 
+                            ? "text-emerald-700 bg-emerald-50 border-emerald-100 hover:bg-emerald-100" 
+                            : "text-slate-700 bg-slate-100 border-slate-100 hover:bg-slate-205 py-2 px-4 shadow-3xs"
+                        }`}
+                      >
+                        {sys.suspended ? "▶️ 稼働を再開する" : "⏸️ プランターを休止する"}
+                      </button>
+                    </div>
+
+                    {/* Complete delete system */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 bg-rose-50/30 rounded-xl border border-rose-100/50">
+                      <div className="space-y-1">
+                        <h4 className="text-xs font-bold text-rose-800 flex items-center gap-1.5 font-sans">
+                          <AlertTriangle className="w-4 h-4 text-rose-600" />
+                          プランターの完全撤去（削除）
+                        </h4>
+                        <p className="text-[11px] text-slate-500 leading-relaxed font-sans">
+                          【警告】間違えて作成した場合などに使用してください。このプランターにこれまで登録された植物やログデータなどは<strong>「すべて完全に削除」</strong>され、元に戻せません。履歴を残したい場合は一時休止をご利用ください。
+                        </p>
+                      </div>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          requestConfirm(
+                            "プランターの完全撤去（データ削除）",
+                            `【警告】本当にこのプランター「${sys.name}」を完全に撤去（削除）しますか？これまでに登録された植物やログデータなどは『すべて完全に削除』され、元に戻せません。`,
+                            () => {
+                              onDeleteSystem(sys.id);
+                              triggerToast(`「${sys.name}」とその全データを削除しました。`);
+                              setActiveSystemSettingsId(null);
+                            }
+                          );
+                        }}
+                        className="sm:w-auto w-full px-4 py-2.5 bg-rose-600 hover:bg-rose-700 text-white hover:scale-[1.01] transition-all text-xs font-bold rounded-xl flex items-center justify-center gap-1.5 cursor-pointer shadow-xs shrink-0"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> プランターを削除する
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          );
+        })()
+      ) : !selectedPlant ? (
         <div className="space-y-6">
           
           {/* Header Action cards */}
@@ -568,28 +888,12 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
           </div>
 
           {/* Active / Archive Toggle Tabs */}
-          <div className="flex border-b border-slate-100 pb-1">
-            <button
-              onClick={() => setViewArchived(false)}
-              className={`pb-2 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
-                !viewArchived 
-                  ? "border-emerald-600 text-slate-800" 
-                  : "border-transparent text-slate-400 hover:text-slate-600"
-              }`}
-            >
-              <span>🟢</span> 栽培中の植物 ({plants.filter(p => !p.archived).length} 株)
-            </button>
-            <button
-              onClick={() => setViewArchived(true)}
-              className={`pb-2 px-4 text-xs font-bold border-b-2 transition-all flex items-center gap-1.5 cursor-pointer ${
-                viewArchived 
-                  ? "border-emerald-600 text-slate-800" 
-                  : "border-transparent text-slate-400 hover:text-slate-600"
-              }`}
-            >
-              <span>📦</span> 栽培完了・アーカイブ ({plants.filter(p => p.archived).length} 株)
-            </button>
-          </div>
+          <ActiveArchivedTabs
+            viewArchived={viewArchived}
+            onToggle={setViewArchived}
+            activeCount={plants.filter(p => !p.archived).length}
+            archiveCount={plants.filter(p => p.archived).length}
+          />
 
           {/* ADD SYSTEM FORM SLIDER */}
           {showAddSys && (
@@ -747,10 +1051,10 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
             {/* 稼働中のプランター */}
             {systems.filter(s => !s.suspended).length > 0 && (
               <div className="space-y-4">
-                <h3 className="text-xs font-bold text-slate-700 flex items-center gap-1.5 px-1">
+                <h3 className="text-xs font-bold text-slate-700 flex items-center gap-1.5 px-1 text-left">
                   <span className="flex h-2 w-2 relative">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-50"></span>
                   </span>
                   稼働中のプランター・栽培環境 ({systems.filter(s => !s.suspended).length})
                 </h3>
@@ -761,7 +1065,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                     return (
                       <div key={sys.id} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
                         <div className="flex justify-between items-start gap-4 flex-wrap">
-                          <div className="space-y-1">
+                          <div className="space-y-1 text-left">
                             <div className="flex items-center gap-2">
                               <span className="text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100">
                                 {sys.type === 'DWC' ? 'DWC水耕' : sys.type === 'NFT' ? 'NFT流下' : sys.type === 'Kratky' ? 'Kratky静置' : sys.type === 'Soil_Planter' ? '土耕プランター' : sys.type === 'Backyard_Field' ? '露地畑/家庭菜園' : 'その他環境'}
@@ -772,203 +1076,27 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                           </div>
 
                           <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                setActiveSystemMembersId(activeSystemMembersId === sys.id ? null : sys.id);
-                              }}
-                              className={`px-3 py-1.5 text-xs font-bold border rounded-xl flex items-center gap-1 transition-all cursor-pointer ${
-                                activeSystemMembersId === sys.id 
-                                  ? "bg-teal-600 text-white border-teal-600 shadow-xs" 
-                                  : "bg-teal-50 hover:bg-teal-100 text-teal-800 border-teal-100"
-                              }`}
-                              title="共同栽培メンバー・招待・代表者変更の管理"
-                            >
-                              <Users className="w-3.5 h-3.5" /> メンバー ({sys.members?.length || 1})
-                            </button>
-
                             <button 
                               onClick={() => {
                                 setSysIdForNewPlant(sys.id);
                                 setShowAddPlant(true);
                               }}
-                              className="px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl flex items-center gap-1 transition-all cursor-pointer"
+                              className="px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-55 bg-emerald-50 hover:bg-emerald-100 rounded-xl flex items-center gap-1 transition-all cursor-pointer"
                             >
                               <Plus className="w-3.5 h-3.5" /> 植物を追加
                             </button>
 
                             <button
                               onClick={() => {
-                                requestConfirm(
-                                  "プランターの一時休止",
-                                  "本当にこのプランター（栽培環境・鉢）を一時休止しますか？現在栽培中の植物はすべて『栽培完了・アーカイブ』へ安全に移動されます（データは削除されません）。プランターはいつでも再開できます。",
-                                  () => {
-                                    onUpdateSystem(sys.id, { suspended: true });
-                                    triggerToast(`「${sys.name}」を休止し、すべての植物をアーカイブ化しました。`);
-                                  }
-                                );
+                                setActiveSystemSettingsId(sys.id);
                               }}
-                              className="px-3 py-1.5 text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl flex items-center gap-1 transition-all cursor-pointer border border-slate-200"
-                              title="プランターを一時休止"
+                              className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-205 hover:bg-slate-200 border border-slate-200 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                              title="プランター設定（メンバー追加、休止、削除）"
                             >
-                              ⏸️ 休止する
-                            </button>
-                            
-                            <button 
-                              onClick={() => {
-                                requestConfirm(
-                                  "プランターの完全撤去（データ削除）",
-                                  "【警告】本当にこのプランターを完全に撤去（削除）しますか？間違えて作成した場合などに使用してください。これまでに登録された植物やログデータなどは『すべて完全に削除』され、元に戻せません。履歴を残したい場合は【休止】をご利用ください。",
-                                  () => {
-                                    onDeleteSystem(sys.id);
-                                    triggerToast(`「${sys.name}」とその全データを削除しました。`);
-                                  }
-                                );
-                              }}
-                              className="p-1 px-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-50 border border-slate-100 transition-colors"
-                              title="プランターを完全に削除"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Settings className="w-3.5 h-3.5" /> プランター設定
                             </button>
                           </div>
                         </div>
-
-                        {/* SYSTEM COLLABORATION MEMBERS MANAGEMENT PANEL */}
-                        <AnimatePresence>
-                          {activeSystemMembersId === sys.id && (
-                            <motion.div 
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: "auto" }}
-                              exit={{ opacity: 0, height: 0 }}
-                              className="overflow-hidden"
-                            >
-                              <div className="mt-2 p-5 bg-teal-50/15 rounded-2xl border border-teal-100/50 space-y-4">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center gap-1.5">
-                                    <Users className="w-4 h-4 text-teal-650" />
-                                    <h4 className="font-extrabold text-slate-800 text-xs">共同栽培メンバー管理</h4>
-                                  </div>
-                                  <span className="text-[10px] text-slate-400 font-mono">
-                                    ※プランター別の共同共有設定
-                                  </span>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                  {/* Members list */}
-                                  <div className="space-y-2">
-                                    <h5 className="text-[11px] font-bold text-slate-500">参加中の栽培パートナー</h5>
-                                    <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
-                                      {sys.members?.map((mem: any, i: number) => {
-                                        const isMyself = mem.userId === user?.id;
-                                        const isOwner = sys.currentUserRole === "owner";
-                                        const showActionBtn = (!isMyself && isOwner) || (isMyself && mem.role !== "owner");
-
-                                        return (
-                                          <div key={mem.userId || i} className="p-2.5 bg-white border border-slate-100 rounded-xl flex items-center justify-between gap-2 shadow-2xs transition-colors hover:border-slate-200">
-                                            <div className="space-y-0.5 min-w-0 flex-1">
-                                              <div className="flex items-center gap-1.5 flex-wrap">
-                                                <span className="font-extrabold text-xs text-slate-750 truncate max-w-[120px]">{mem.name}</span>
-                                                <span className={`text-[9px] font-semibold px-1 rounded ${
-                                                  mem.role === "owner" ? "bg-amber-50 text-amber-800 border border-amber-100/50" : "bg-teal-50 text-teal-800"
-                                                }`}>
-                                                  {mem.role === "owner" ? "オーナー" : "お手伝い"}
-                                                </span>
-                                                {isMyself && <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1 rounded">あなた</span>}
-                                              </div>
-                                              <span className="text-[10px] text-slate-400 block truncate" title={mem.email}>{mem.email}</span>
-                                            </div>
-
-                                            <div className="flex items-center gap-1 shrink-0">
-                                              {/* Owner Transfer (only for owner viewing other cultivators) */}
-                                              {isOwner && !isMyself && mem.role !== "owner" && (
-                                                <button
-                                                  onClick={() => {
-                                                    requestConfirm(
-                                                      "オーナー権限の譲渡",
-                                                      `本当に「${mem.name}」さんに、このプランター「${sys.name}」のオーナー（代表所有権）を譲渡しますか？\n\n※譲渡後、あなた自身は共同栽培メンバー（お手伝い）となり、プランターの削除や他のメンバーの解任、オーナー権限の変更操作は行えなくなります。`,
-                                                      () => {
-                                                        onTransferOwnership(sys.id, mem.userId);
-                                                        triggerToast(`「${mem.name}」さんにオーナー権限を譲渡しました。`);
-                                                      }
-                                                    );
-                                                  }}
-                                                  className="p-1 px-1.5 text-[9px] bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-20 border-amber-100 rounded-lg font-bold transition-colors cursor-pointer"
-                                                >
-                                                  👑 譲渡
-                                                </button>
-                                              )}
-
-                                              {showActionBtn && (
-                                                <button
-                                                  onClick={() => {
-                                                    const confirmTitle = isMyself ? "共同栽培から退出" : "メンバーの解任";
-                                                    const confirmMsg = isMyself
-                                                      ? `本当にこのプランター「${sys.name}」のお手伝いメンバーから退出しますか？`
-                                                      : `本当に「${mem.name}」さんをこのプランターの共同栽培・共有メンバーから解除しますか？`;
-
-                                                    requestConfirm(
-                                                      confirmTitle,
-                                                      confirmMsg,
-                                                      () => {
-                                                        onRemoveMember(sys.id, mem.userId);
-                                                        triggerToast(isMyself ? "退出しました。" : `「${mem.name}」さんを解任しました。`);
-                                                      }
-                                                    );
-                                                  }}
-                                                  className="p-1 px-1.5 text-[9px] bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded-lg font-bold transition-colors cursor-pointer"
-                                                >
-                                                  {isMyself ? "🥾 退出" : "✕ 解除"}
-                                                </button>
-                                              )}
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-
-                                  {/* Invitation Form */}
-                                  <div className="space-y-2">
-                                    <h5 className="text-[11px] font-bold text-slate-500">栽培パートナーを招待する</h5>
-                                    <form 
-                                      onSubmit={(e) => {
-                                        e.preventDefault();
-                                        const emailToInvite = sysInviteEmails[sys.id]?.trim();
-                                        if (!emailToInvite) return;
-                                        onInviteMember(sys.id, emailToInvite);
-                                        setSysInviteEmails(prev => ({ ...prev, [sys.id]: "" }));
-                                      }}
-                                      className="bg-white border border-slate-100 p-4 rounded-xl space-y-3"
-                                    >
-                                      <div>
-                                        <label className="block text-slate-400 text-[10px] font-bold mb-1">
-                                          招待するパートナーのメールアドレス
-                                        </label>
-                                        <input 
-                                          type="email"
-                                          required
-                                          value={sysInviteEmails[sys.id] || ""}
-                                          onChange={(e) => setSysInviteEmails(prev => ({ ...prev, [sys.id]: e.target.value }))}
-                                          placeholder="companion@example.com"
-                                          className="w-full px-3 py-1.5 text-base md:text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-705 focus:bg-white focus:border-emerald-500 transition-all focus:outline-hidden"
-                                        />
-                                        <p className="text-[9.5px]/relaxed text-slate-400 mt-1 leading-relaxed">
-                                          ※このプランターおよび中の全植物への共同アクセス権が付与されます。お相手が事前にログイン登録を済ませている必要があります。
-                                        </p>
-                                      </div>
-
-                                      <button 
-                                        type="submit"
-                                        className="w-full py-1.5 px-3 bg-teal-600 hover:bg-teal-700 text-white text-[11px]/tight font-bold rounded-lg transition-all flex items-center justify-center gap-1 cursor-pointer"
-                                      >
-                                        <span>👥</span> プランターを共同栽培する
-                                      </button>
-                                    </form>
-                                  </div>
-                                </div>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
 
                         {/* PLANTS IN THIS SYSTEM ROW CARDS */}
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2">
@@ -1098,37 +1226,14 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                           </div>
 
                           <div className="flex gap-2">
-                            <button 
+                            <button
                               onClick={() => {
-                                requestConfirm(
-                                  "プランターの稼働再開",
-                                  `「${sys.name}」の稼働を再開します。新しい植物を登録していつでも栽培を開始できます。`,
-                                  () => {
-                                    onUpdateSystem(sys.id, { suspended: false });
-                                    triggerToast(`「${sys.name}」の稼働を再開しました！`);
-                                  }
-                                );
+                                setActiveSystemSettingsId(sys.id);
                               }}
-                              className="px-3 py-1.5 text-xs font-bold text-emerald-850 bg-emerald-50 hover:bg-emerald-100 rounded-xl flex items-center gap-1 transition-all cursor-pointer border border-emerald-200"
+                              className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                              title="プランター設定（メンバー追加、再開、削除）"
                             >
-                              ▶️ 再開する
-                            </button>
-                            
-                            <button 
-                              onClick={() => {
-                                requestConfirm(
-                                  "プランターの完全撤去（データ削除）",
-                                  "【警告】本当にこのプランターを完全に撤去（削除）しますか？これまでに登録された植物やログデータなどは『すべて完全に削除』され、元に戻せません。履歴を残したい場合はこのまま置いておくことをお勧めします。",
-                                  () => {
-                                    onDeleteSystem(sys.id);
-                                    triggerToast(`「${sys.name}」とその全データを削除しました。`);
-                                  }
-                                );
-                              }}
-                              className="p-1 px-2 text-slate-400 hover:text-rose-600 rounded-lg hover:bg-slate-50 border border-slate-100 transition-colors"
-                              title="プランターを完全に削除"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Settings className="w-3.5 h-3.5" /> プランター設定
                             </button>
                           </div>
                         </div>
@@ -1286,32 +1391,37 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
           {/* PLANT SUB TABS NAVIGATION */}
           <div className="flex border-b border-slate-100 text-xs flex-wrap font-sans">
             <button 
+              id="tab-btn-logs"
               onClick={() => setActiveTab("logs")}
-              className={`px-4.5 py-3 font-bold border-b-2 transition-all cursor-pointer ${activeTab === "logs" ? "border-emerald-600 text-emerald-800 font-extrabold" : "border-transparent text-slate-500 hover:text-slate-800"}`}
+              className={`px-4.5 py-3 font-bold border-b-2 transition-all cursor-pointer ${activeTab === "logs" ? "border-emerald-600 text-emerald-800 font-extrabold" : "border-transparent text-slate-500 hover:text-slate-100"}`}
             >
               📊 栽培記録
             </button>
             <button 
+              id="tab-btn-nutrients"
               onClick={() => setActiveTab("nutrients")}
-              className={`px-4.5 py-3 font-bold border-b-2 transition-all cursor-pointer ${activeTab === "nutrients" ? "border-emerald-600 text-emerald-800 font-extrabold" : "border-transparent text-slate-500 hover:text-slate-800"}`}
+              className={`px-4.5 py-3 font-bold border-b-2 transition-all cursor-pointer ${activeTab === "nutrients" ? "border-emerald-600 text-emerald-800 font-extrabold" : "border-transparent text-slate-500 hover:text-slate-100"}`}
             >
               🧪 液肥肥料管理
             </button>
             <button 
+              id="tab-btn-ai"
               onClick={() => setActiveTab("ai")}
-              className={`px-4.5 py-3 font-bold border-b-2 transition-all cursor-pointer ${activeTab === "ai" ? "border-emerald-600 text-emerald-800 font-extrabold" : "border-transparent text-slate-500 hover:text-slate-800"}`}
+              className={`px-4.5 py-3 font-bold border-b-2 transition-all cursor-pointer ${activeTab === "ai" ? "border-emerald-600 text-emerald-800 font-extrabold" : "border-transparent text-slate-500 hover:text-slate-100"}`}
             >
               ✨ AIアドバイザー
             </button>
             <button 
+              id="tab-btn-photos"
               onClick={() => setActiveTab("photos")}
-              className={`px-4.5 py-3 font-bold border-b-2 transition-all cursor-pointer ${activeTab === "photos" ? "border-emerald-600 text-emerald-800 font-extrabold" : "border-transparent text-slate-500 hover:text-slate-800"}`}
+              className={`px-4.5 py-3 font-bold border-b-2 transition-all cursor-pointer ${activeTab === "photos" ? "border-emerald-600 text-emerald-800 font-extrabold" : "border-transparent text-slate-500 hover:text-slate-100"}`}
             >
               📷 成長写真アルバム
             </button>
             <button 
+              id="tab-btn-settings"
               onClick={() => setActiveTab("settings")}
-              className={`px-4.5 py-3 font-bold border-b-2 transition-all cursor-pointer ${activeTab === "settings" ? "border-emerald-600 text-emerald-800 font-extrabold" : "border-transparent text-slate-500 hover:text-slate-800"}`}
+              className={`px-4.5 py-3 font-bold border-b-2 transition-all cursor-pointer ${activeTab === "settings" ? "border-emerald-600 text-emerald-800 font-extrabold" : "border-transparent text-slate-500 hover:text-slate-100"}`}
             >
               ⚙️ 設定
             </button>
@@ -2069,150 +2179,51 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
               </div>
             )}
 
-            {/* 6. SETTINGS TAB */}
+            {/* 5. SETTINGS TAB */}
             {activeTab === "settings" && (
-              <div className="space-y-6 animate-in fade-in duration-200 text-left">
+              <div className="space-y-6 animate-in fade-in duration-200 text-left font-sans">
                 
-                {/* Collaboration Settings Card */}
-                <div className="border border-slate-150 rounded-2xl p-6 bg-slate-50/50 space-y-4">
-                  <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
-                    <Users className="w-4 h-4 text-emerald-600" />
-                    共同栽培・共有設定
-                  </h3>
-                  
-                  <div className="bg-teal-50/40 p-4.5 rounded-2xl border border-teal-100/50 flex gap-3 text-xs leading-relaxed text-teal-900">
-                    <Users className="w-5 h-5 text-teal-600 shrink-0 mt-0.5" />
-                    <div className="space-y-1 w-full">
-                      <h4 className="font-extrabold text-teal-850">プランター共同栽培・共有機能</h4>
-                      <p className="text-slate-600 font-sans leading-relaxed">
-                        共有は<strong>プランター（栽培環境・鉢）ごと</strong>行われます。招待したメンバーは、このプランター「<span className="font-bold text-teal-950">{selectedPlant.system?.name || "ハイドロプランター"}</span>」に登録されているすべての植物の成長ログ、施肥・お世話スケジュール、AIチャット診断ログをリアルタイムで共同編集・管理できるようになります。
+                {/* 共同栽培・共有設定へのリンクカード */}
+                <div id="planter-coop-link-card" className="border border-teal-150 rounded-2xl p-6 bg-gradient-to-br from-teal-50/35 to-emerald-50/20 space-y-4 font-sans shadow-2xs">
+                  <div className="flex items-start gap-4">
+                    <div className="p-3 bg-teal-500/10 rounded-xl text-teal-700 shrink-0 mt-0.5">
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <div className="space-y-1 text-left flex-1 font-sans">
+                      <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2 leading-none">
+                        共同栽培・共有（お手伝い）設定
+                        <span className="text-[10px] text-teal-700 bg-teal-50 border border-teal-100/50 px-2 py-0.5 rounded-full font-extrabold">
+                          プランター単位
+                        </span>
+                      </h3>
+                      <p className="text-xs text-slate-600 leading-relaxed font-sans mt-2">
+                        共有やお手伝い管理は、個々の植物ごとではなく<strong>プランター（栽培環境・鉢）単位</strong>で行います。<br />
+                        この植物が育てられているプランター「<span className="font-extrabold text-teal-800">{selectedPlant.system?.name || "ハイドロプランター"}</span>」の共同栽培画面を開いて、新メンバーの招待、既存メンバーの割当や退出設定を行うことができます。
                       </p>
                     </div>
                   </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-2">
-                    
-                    {/* Current Active cultivation members lists */}
-                    <div className="space-y-4">
-                      <h4 className="font-extrabold text-slate-800 text-xs">プランター栽培メンバー ({selectedPlant.members?.length || 1})</h4>
-                      
-                      <div className="space-y-2.5 font-sans">
-                        {selectedPlant.members?.map((mem: any, idx: number) => {
-                          const isMyself = mem.userId === user?.id;
-                          const isOwner = selectedPlant.currentUserRole === "owner";
-                          const showActionBtn = (!isMyself && isOwner) || (isMyself && mem.role !== "owner");
-                          
-                          return (
-                            <div key={mem.userId || idx} className="p-3 bg-white rounded-xl border border-slate-100 flex items-center justify-between">
-                              <div className="space-y-0.5 flex-1 min-w-0 pr-2">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="font-bold text-xs text-slate-800 truncate">{mem.name}</span>
-                                  <span className={`text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shrink-0 ${
-                                    mem.role === "owner" ? "bg-amber-50 text-amber-800 border border-amber-100" : "bg-teal-50 text-teal-800 border border-teal-100"
-                                  }`}>
-                                    {mem.role === "owner" ? "オーナー" : "お手伝い"}
-                                  </span>
-                                  {isMyself && <span className="text-[9px] font-bold text-emerald-600 bg-emerald-50 px-1 rounded shrink-0">あなた</span>}
-                                </div>
-                                <span className="text-[10px] text-slate-400 break-all block truncate">{mem.email}</span>
-                              </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                {mem.role === "owner" && (
-                                  <span className="text-[10px] font-mono font-bold text-slate-500 mr-1 flex items-center gap-1">
-                                    👑 オーナー
-                                  </span>
-                                )}
-                                
-                                {/* Transfer ownership button (only shown for owner viewing other normal members) */}
-                                {isOwner && !isMyself && mem.role !== "owner" && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      requestConfirm(
-                                        "オーナー権限の譲渡",
-                                        `本当に「${mem.name}」さんに、このプランター「${selectedPlant.system?.name || "ハイドロプランター"}」のオーナー（代表権）を譲渡しますか？\n\n※譲渡後、あなた自身は共同栽培メンバー（お手伝い）となり、プランターの削除や他のメンバーの解任、オーナー権限の変更操作は行えなくなります。`,
-                                        () => {
-                                          onTransferOwnership(selectedPlant.id, mem.userId);
-                                          triggerToast(`「${mem.name}」さんにオーナー権限を譲渡しました。`);
-                                        }
-                                      );
-                                    }}
-                                    className="p-1 px-1.5 text-[10px] bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-100 rounded-lg transition-all font-bold cursor-pointer"
-                                    title="オーナー権限を他のメンバーに譲渡します"
-                                  >
-                                    オーナー譲渡
-                                  </button>
-                                )}
-
-                                {showActionBtn && (
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      const confirmTitle = isMyself ? "プランターの共同栽培から退出" : "メンバーの解任";
-                                      const confirmMsg = isMyself
-                                        ? `本当にこのプランター（${selectedPlant.system?.name}）の共同栽培メンバーから退出しますか？共有されている全ての植物から退出となります。`
-                                        : `本当に「${mem.name}」さんをこのプランター（${selectedPlant.system?.name}）の共同栽培メンバーから解任（削除）しますか？`;
-                                      
-                                      requestConfirm(
-                                        confirmTitle,
-                                        confirmMsg,
-                                        () => {
-                                          onRemoveMember(selectedPlant.id, mem.userId);
-                                          triggerToast(isMyself ? "共同栽培から退出しました。" : `「${mem.name}」さんを解任しました。`);
-                                        }
-                                      );
-                                    }}
-                                    className="p-1 px-1.5 text-[10px] bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-100 rounded-lg transition-all font-bold cursor-pointer"
-                                    title={isMyself ? "退出する" : "解任する"}
-                                  >
-                                    {isMyself ? "🥾 退出" : "✕ 解任"}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Cultivator invitation form section */}
-                    <div className="space-y-4 font-sans">
-                      <h4 className="font-extrabold text-slate-800 text-xs text-left">プランター共有メンバーの招待</h4>
-                      
-                      <form onSubmit={handleAddInvite} className="bg-white border border-slate-100 p-5 rounded-2xl space-y-4">
-                        <div className="text-left">
-                          <label className="block text-slate-500 text-[10.5px] font-bold mb-1.5 flex items-center gap-1">
-                            <span>📧</span> 招待するパートナーのメールアドレス
-                          </label>
-                          <input 
-                            type="email"
-                            required
-                            value={inviteEmail}
-                            onChange={(e) => setInviteEmail(e.target.value)}
-                            placeholder="例: companion@example.com"
-                            className="w-full px-3 py-1.5 text-base md:text-xs bg-white border border-slate-200 rounded-lg text-slate-700"
-                          />
-                          <p className="text-[10px] text-slate-400 mt-1.5 leading-relaxed">
-                            ※招待を送信すると、お相手のアカウントからこのプランターおよび中のすべての植物にアクセスできるようになります。
-                          </p>
-                        </div>
-                        
-                        <button 
-                          type="submit"
-                          className="w-full py-2 px-4 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
-                        >
-                          <span>👥</span> プランター全体を共同栽培する
-                        </button>
-                      </form>
-                    </div>
-
+                  
+                  <div className="flex justify-end pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // 親プランター設定を開く
+                        setActiveSystemSettingsId(selectedPlant.systemId);
+                        // 植物詳細画面を閉じる（プランター設定と同時に一覧へバックするため）
+                        onSelectPlant(null);
+                      }}
+                      className="px-4.5 py-2.5 bg-teal-600 hover:bg-teal-700 active:scale-[0.99] text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center gap-2 cursor-pointer font-sans"
+                    >
+                      <span>👥 このプランターの共同設定へ進む</span>
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
                   </div>
                 </div>
 
-                <div className="border border-slate-150 rounded-2xl p-6 bg-slate-50/50 space-y-4">
-                  <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2">
-                    <Settings className="w-4 h-4 text-slate-500" />
-                    植物プロファイル設定
+                <div id="planter-profile-settings-panel" className="border border-slate-150 rounded-2xl p-6 bg-slate-50/50 space-y-4 font-sans">
+                  <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3 font-sans">
+                    <Settings className="w-4 h-4 text-slate-550" />
+                    プランター管理設定
                   </h3>
                   <p className="text-xs text-slate-500 leading-relaxed font-sans">
                     「{selectedPlant.name}」に関するステータスの変更や、データの削除を行うことができます。

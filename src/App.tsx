@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect } from "react";
+import { useScrollToTop } from "./hooks/useScrollToTop";
 import { 
   User, System, Plant, ScheduleProposal, ProposalStatus, SystemType, PlantStage, HarvestPrediction 
 } from "./types";
@@ -46,9 +47,7 @@ export default function App() {
   const [weatherError, setWeatherError] = useState<string | null>(null);
 
   // Scroll to top on page (tab) or selected plant change to improve UX on transitioning
-  useEffect(() => {
-    window.scrollTo({ top: 0, behavior: "instant" });
-  }, [activeTab, selectedPlantDetails]);
+  useScrollToTop([selectedPlantDetails]);
 
   // Load weather advice once globally, or when location/token changes, preventing re-fetching on tab toggles
   useEffect(() => {
