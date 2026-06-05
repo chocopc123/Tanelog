@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { User } from "../types";
 import { 
-  Settings, User as UserIcon, CloudRain, Save, CheckCircle, HelpCircle, Thermometer, Info, Trash2
+  Settings, User as UserIcon, CloudRain, Save, CheckCircle, Thermometer, Info, Trash2
 } from "lucide-react";
 
 interface SettingsViewProps {
@@ -167,39 +167,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
-      </div>
-
-      {/* Info Hydroponic parameters cheat card */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-xs space-y-4">
-        <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2 border-b border-slate-50 pb-3">
-          <HelpCircle className="w-4 h-4 text-emerald-600" /> 水耕栽培 水質管理の基準
-        </h3>
-
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="p-3 bg-slate-50 rounded-xl space-y-1">
-            <div className="text-xs font-extrabold text-slate-700 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-teal-500 inline-block"></span> 基準pH範囲
-            </div>
-            <div className="text-base font-extrabold text-slate-800 font-mono">5.8 〜 6.5</div>
-            <p className="text-[10px] text-slate-400 leading-snug">弱酸性が基本。7.0を超えると鉄やマグネシウム等の金属微量要素の吸収が阻害され、葉が黄化します。</p>
-          </div>
-
-          <div className="p-3 bg-slate-50 rounded-xl space-y-1">
-            <div className="text-xs font-extrabold text-slate-700 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-indigo-500 inline-block"></span> 標準電気伝導度 EC値
-            </div>
-            <div className="text-base font-extrabold text-slate-800 font-mono">1.0 〜 2.5</div>
-            <p className="text-[10px] text-slate-400 leading-snug">単位は mS/cm（葉物: 1.0〜1.6 / 果実: 2.0〜2.5）。高すぎると肥料焼けを起こし、低すぎると成長が遅れます。</p>
-          </div>
-
-          <div className="p-3 bg-slate-50 rounded-xl space-y-1">
-            <div className="text-xs font-extrabold text-slate-700 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span> 理想水温
-            </div>
-            <div className="text-base font-extrabold text-slate-800 font-mono">18℃ 〜 22℃</div>
-            <p className="text-[10px] text-slate-400 leading-snug">25℃を超えると液体内の溶存酸素量が急激に下がり、最も恐ろしい根腐れ（カビ菌増殖）の原因となります。</p>
-          </div>
-        </div>
       </div>
     </div>
   );
