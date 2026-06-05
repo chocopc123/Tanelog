@@ -40,6 +40,11 @@ export default function App() {
   const [loadingPredictions, setLoadingPredictions] = useState(false);
   const [predictionsError, setPredictionsError] = useState<string | null>(null);
 
+  // Scroll to top on page (tab) or selected plant change to improve UX on transitioning
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [activeTab, selectedPlantDetails]);
+
   // Loading Feedback
   const [loading, setLoading] = useState(false);
 
