@@ -11,6 +11,25 @@ import {
   Activity, Calendar as CalendarIcon, Droplets, Settings, LogOut, Sprout, ShieldAlert, CloudRain, CheckSquare, Sparkles 
 } from "lucide-react";
 
+const retryFetch = async (
+  url: string,
+  options?: RequestInit,
+  retries = 3,
+  delay = 1000
+): Promise<Response> => {
+  try {
+    const res = await fetch(url, options);
+    return res;
+  } catch (err) {
+    if (retries > 0) {
+      console.warn(`Fetch to ${url} failed. Retrying in ${delay}ms... (${retries} retries left)`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return retryFetch(url, options, retries - 1, delay * 1.5);
+    }
+    throw err;
+  }
+};
+
 export default function App() {
   // Helper to sanitize token from non-ASCII/control characters
   const getCleanToken = (): string | null => {
@@ -46,8 +65,44 @@ export default function App() {
   const [loadingWeather, setLoadingWeather] = useState(false);
   const [weatherError, setWeatherError] = useState<string | null>(null);
 
+  // Remounting keys for each tab to reset state on tab re-click
+  const [dashboardKey, setDashboardKey] = useState(0);
+  const [systemsKey, setSystemsKey] = useState(0);
+  const [calendarKey, setCalendarKey] = useState(0);
+  const [settingsKey, setSettingsKey] = useState(0);
+
   // Scroll to top on page (tab) or selected plant change to improve UX on transitioning
-  useScrollToTop([selectedPlantDetails]);
+  useScrollToTop([selectedPlantDetails, activeTab]);
+
+  const handleTabClick = (tabName: string) => {
+    setActiveTab(tabName);
+    handleSelectDetailedPlant(null);
+
+    if (tabName === "dashboard") setDashboardKey(prev => prev + 1);
+    if (tabName === "systems") setSystemsKey(prev => prev + 1);
+    if (tabName === "calendar") setCalendarKey(prev => prev + 1);
+    if (tabName === "settings") setSettingsKey(prev => prev + 1);
+
+    // Scroll to the absolute top smoothly
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (document.documentElement) {
+      document.documentElement.scrollTop = 0;
+    }
+    if (document.body) {
+      document.body.scrollTop = 0;
+    }
+
+    const containers = [
+      document.querySelector("main"),
+      document.getElementById("main-container"),
+      document.getElementById("app-scroll-container"),
+    ];
+    containers.forEach((container) => {
+      if (container) {
+        container.scrollTop = 0;
+      }
+    });
+  };
 
   // Load weather advice once globally, or when location/token changes, preventing re-fetching on tab toggles
   useEffect(() => {
@@ -61,7 +116,7 @@ export default function App() {
         if (token) {
           headers["Authorization"] = `Bearer ${token}`;
         }
-        const res = await fetch(`/api/weather-advice?location=${encodeURIComponent(userLocation || "長野県長野市")}`, {
+        const res = await retryFetch(`/api/weather-advice?location=${encodeURIComponent(userLocation || "長野県長野市")}`, {
           headers
         });
         if (res.ok) {
@@ -119,7 +174,7 @@ export default function App() {
     if (!token) return;
     setLoadingPredictions(true);
     try {
-      const res = await fetch(`/api/plants/harvest-predictions?force=${force}`, {
+      const res = await retryFetch(`/api/plants/harvest-predictions?force=${force}`, {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
@@ -150,7 +205,7 @@ export default function App() {
 
   const fetchCurrentUser = async () => {
     try {
-      const res = await fetch("/api/auth/me", {
+      const res = await retryFetch("/api/auth/me", {
         headers: { "Authorization": `Bearer ${token}` }
       });
       if (res.ok) {
@@ -176,9 +231,9 @@ export default function App() {
       const headerAuth = { "Authorization": `Bearer ${token}` };
 
       const [resSys, resPlants, resProps] = await Promise.all([
-        fetch("/api/systems", { headers: headerAuth }),
-        fetch("/api/plants", { headers: headerAuth }),
-        fetch("/api/proposals", { headers: headerAuth })
+        retryFetch("/api/systems", { headers: headerAuth }),
+        retryFetch("/api/plants", { headers: headerAuth }),
+        retryFetch("/api/proposals", { headers: headerAuth })
       ]);
 
       if (resSys.ok && resPlants.ok && resProps.ok) {
@@ -201,7 +256,7 @@ export default function App() {
 
           // Auto re-hydrate detailed plant if it is currently selected
           if (selectedPlantDetails) {
-            const freshDetailsRes = await fetch(`/api/plants/${selectedPlantDetails.id}`, { headers: headerAuth });
+            const freshDetailsRes = await retryFetch(`/api/plants/${selectedPlantDetails.id}`, { headers: headerAuth });
             if (freshDetailsRes.ok) {
               const ctDetails = freshDetailsRes.headers.get("content-type");
               if (ctDetails && ctDetails.includes("application/json")) {
@@ -826,25 +881,25 @@ export default function App() {
           {/* Navigation Tab controllers */}
           <nav className="hidden md:flex items-center gap-1 text-xs">
             <button 
-              onClick={() => { setActiveTab("dashboard"); handleSelectDetailedPlant(null); }}
+              onClick={() => handleTabClick("dashboard")}
               className={`px-4 py-2 font-bold rounded-xl flex items-center gap-1.5 transition-all ${activeTab === 'dashboard' ? 'bg-emerald-50 text-emerald-800 font-extrabold' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
             >
               <Activity className="w-4 h-4" /> ダッシュボード
             </button>
             <button 
-              onClick={() => { setActiveTab("systems"); handleSelectDetailedPlant(null); }}
+              onClick={() => handleTabClick("systems")}
               className={`px-4 py-2 font-bold rounded-xl flex items-center gap-1.5 transition-all ${activeTab === 'systems' ? 'bg-emerald-50 text-emerald-800 font-extrabold' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
             >
               <Sprout className="w-4 h-4" /> プランターと植物
             </button>
             <button 
-              onClick={() => { setActiveTab("calendar"); handleSelectDetailedPlant(null); }}
+              onClick={() => handleTabClick("calendar")}
               className={`px-4 py-2 font-bold rounded-xl flex items-center gap-1.5 transition-all ${activeTab === 'calendar' ? 'bg-emerald-50 text-emerald-800 font-extrabold' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
             >
               <CalendarIcon className="w-4 h-4" /> カレンダー
             </button>
             <button 
-              onClick={() => { setActiveTab("settings"); handleSelectDetailedPlant(null); }}
+              onClick={() => handleTabClick("settings")}
               className={`px-4 py-2 font-bold rounded-xl flex items-center gap-1.5 transition-all ${activeTab === 'settings' ? 'bg-emerald-50 text-emerald-800 font-extrabold' : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'}`}
             >
               <Settings className="w-4 h-4" /> 設定 / 気候地域
@@ -870,26 +925,26 @@ export default function App() {
         {/* Mobile quick-bar navigation */}
         <div className="md:hidden border-t border-slate-50 flex items-center justify-around h-11 text-[11px] font-sans font-bold text-slate-500 bg-white shadow-xs">
           <button 
-            onClick={() => { setActiveTab("dashboard"); handleSelectDetailedPlant(null); }}
-            className={`flex-1 py-2 text-center flex items-center justify-center gap-1 ${activeTab === 'dashboard' ? 'text-emerald-700 bg-emerald-50/50' : 'hover:text-slate-800'}`}
+            onClick={() => handleTabClick("dashboard")}
+            className={`flex-1 py-2 text-center flex items-center justify-center gap-1 ${activeTab === 'dashboard' ? 'text-emerald-700 bg-emerald-50/50' : 'hover:text-slate-805'}`}
           >
             ダッシュボード
           </button>
           <button 
-            onClick={() => { setActiveTab("systems"); handleSelectDetailedPlant(null); }}
-            className={`flex-1 py-2 text-center flex items-center justify-center gap-1 ${activeTab === 'systems' ? 'text-emerald-700 bg-emerald-50/50' : 'hover:text-slate-800'}`}
+            onClick={() => handleTabClick("systems")}
+            className={`flex-1 py-2 text-center flex items-center justify-center gap-1 ${activeTab === 'systems' ? 'text-emerald-700 bg-emerald-50/50' : 'hover:text-slate-805'}`}
           >
             植物
           </button>
           <button 
-            onClick={() => { setActiveTab("calendar"); handleSelectDetailedPlant(null); }}
-            className={`flex-1 py-1.5 text-center flex items-center justify-center gap-1 ${activeTab === 'calendar' ? 'text-emerald-700 bg-emerald-50/50' : 'hover:text-slate-800'}`}
+            onClick={() => handleTabClick("calendar")}
+            className={`flex-1 py-1.5 text-center flex items-center justify-center gap-1 ${activeTab === 'calendar' ? 'text-emerald-700 bg-emerald-50/50' : 'hover:text-slate-805'}`}
           >
             カレンダー
           </button>
           <button 
-            onClick={() => { setActiveTab("settings"); handleSelectDetailedPlant(null); }}
-            className={`flex-1 py-1.5 text-center flex items-center justify-center gap-1 ${activeTab === 'settings' ? 'text-emerald-700 bg-emerald-50/50' : 'hover:text-slate-800'}`}
+            onClick={() => handleTabClick("settings")}
+            className={`flex-1 py-1.5 text-center flex items-center justify-center gap-1 ${activeTab === 'settings' ? 'text-emerald-700 bg-emerald-50/50' : 'hover:text-slate-805'}`}
           >
             気候・設定
           </button>
@@ -902,6 +957,7 @@ export default function App() {
         {/* Render Views based on activated tabs pointer */}
         {activeTab === "dashboard" && (
           <DashboardView 
+            key={dashboardKey}
             user={user}
             systems={systems}
             plants={plants}
@@ -931,6 +987,7 @@ export default function App() {
 
         {activeTab === "systems" && (
           <SystemPlantsView 
+            key={systemsKey}
             user={user}
             systems={systems}
             plants={plants}
@@ -966,6 +1023,7 @@ export default function App() {
 
         {activeTab === "calendar" && (
           <CalendarView 
+            key={calendarKey}
             proposals={proposals}
             onApproveProposal={handleApproveProposal}
             userToken={user.id}
@@ -976,6 +1034,7 @@ export default function App() {
 
         {activeTab === "settings" && (
           <SettingsView 
+            key={settingsKey}
             user={user}
             userLocation={userLocation}
             onUpdateProfile={handleUpdateUserProfile}

@@ -1056,7 +1056,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-50"></span>
                   </span>
-                  稼働中のプランター・栽培環境 ({systems.filter(s => !s.suspended).length})
+                  稼働中のプランター ({systems.filter(s => !s.suspended).length})
                 </h3>
                 <div className="space-y-6">
                   {systems.filter(s => !s.suspended).map((sys) => {
@@ -2223,7 +2223,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                 <div id="planter-profile-settings-panel" className="border border-slate-150 rounded-2xl p-6 bg-slate-50/50 space-y-4 font-sans">
                   <h3 className="text-sm font-extrabold text-slate-800 flex items-center gap-2 border-b border-slate-100 pb-3 font-sans">
                     <Settings className="w-4 h-4 text-slate-550" />
-                    プランター管理設定
+                    植物管理設定
                   </h3>
                   <p className="text-xs text-slate-500 leading-relaxed font-sans">
                     「{selectedPlant.name}」に関するステータスの変更や、データの削除を行うことができます。
