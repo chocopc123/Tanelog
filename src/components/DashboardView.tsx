@@ -19,6 +19,9 @@ interface DashboardViewProps {
   lastCalcAt: string;
   loadingPredictions: boolean;
   predictionsError?: string | null;
+  weatherAdvice: string | null;
+  loadingWeather: boolean;
+  weatherError: string | null;
   onRefreshPredictions: (force: boolean) => Promise<void>;
   onApproveProposal: (id: string, status: ProposalStatus) => void;
   onCompleteProposalTask?: (task: any) => Promise<void>;
@@ -38,6 +41,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   lastCalcAt,
   loadingPredictions,
   predictionsError,
+  weatherAdvice,
+  loadingWeather,
+  weatherError,
   onRefreshPredictions,
   onApproveProposal,
   onCompleteProposalTask,
@@ -46,44 +52,6 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onAddSystemClick
 }) => {
   const [toastMsg, setToastMsg] = useState("");
-  const [weatherAdvice, setWeatherAdvice] = useState<string | null>(null);
-  const [loadingWeather, setLoadingWeather] = useState(false);
-  const [weatherError, setWeatherError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    const fetchWeatherAdvice = async () => {
-      setLoadingWeather(true);
-      setWeatherError(null);
-      try {
-        const headers: { [key: string]: string } = {};
-        if (token) {
-          headers["Authorization"] = `Bearer ${token}`;
-        }
-        const res = await fetch(`/api/weather-advice?location=${encodeURIComponent(userLocation || "長野県長野市")}`, {
-          headers
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (active && data.advice) {
-            setWeatherAdvice(data.advice);
-          }
-          if (active && data.geminiError) {
-            setWeatherError(data.geminiError);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch climate/weather advice:", err);
-      } finally {
-        if (active) setLoadingWeather(false);
-      }
-    };
-
-    fetchWeatherAdvice();
-    return () => {
-      active = false;
-    };
-  }, [userLocation, token]);
 
   const triggerLocalToast = (msg: string) => {
     setToastMsg(msg);

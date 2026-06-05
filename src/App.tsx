@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useLayoutEffect } from "react";
 import { 
   User, System, Plant, ScheduleProposal, ProposalStatus, SystemType, PlantStage, HarvestPrediction 
 } from "./types";
@@ -40,10 +40,52 @@ export default function App() {
   const [loadingPredictions, setLoadingPredictions] = useState(false);
   const [predictionsError, setPredictionsError] = useState<string | null>(null);
 
+  // Global weather advice cache state to prevent layout shift on quick tab switching
+  const [weatherAdvice, setWeatherAdvice] = useState<string | null>(null);
+  const [loadingWeather, setLoadingWeather] = useState(false);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
+
   // Scroll to top on page (tab) or selected plant change to improve UX on transitioning
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
   }, [activeTab, selectedPlantDetails]);
+
+  // Load weather advice once globally, or when location/token changes, preventing re-fetching on tab toggles
+  useEffect(() => {
+    if (!user) return;
+    let active = true;
+    const fetchWeatherAdvice = async () => {
+      setLoadingWeather(true);
+      setWeatherError(null);
+      try {
+        const headers: { [key: string]: string } = {};
+        if (token) {
+          headers["Authorization"] = `Bearer ${token}`;
+        }
+        const res = await fetch(`/api/weather-advice?location=${encodeURIComponent(userLocation || "長野県長野市")}`, {
+          headers
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (active && data.advice) {
+            setWeatherAdvice(data.advice);
+          }
+          if (active && data.geminiError) {
+            setWeatherError(data.geminiError);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch climate/weather advice:", err);
+      } finally {
+        if (active) setLoadingWeather(false);
+      }
+    };
+
+    fetchWeatherAdvice();
+    return () => {
+      active = false;
+    };
+  }, [userLocation, token, user]);
 
   // Loading Feedback
   const [loading, setLoading] = useState(false);
@@ -871,6 +913,9 @@ export default function App() {
             lastCalcAt={lastCalcAt}
             loadingPredictions={loadingPredictions}
             predictionsError={predictionsError}
+            weatherAdvice={weatherAdvice}
+            loadingWeather={loadingWeather}
+            weatherError={weatherError}
             onRefreshPredictions={fetchPredictions}
             onApproveProposal={handleApproveProposal}
             onCompleteProposalTask={handleCompleteProposalTask}
