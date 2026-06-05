@@ -461,29 +461,30 @@ app.get("/api/auth/me", (req, res) => {
 });
 
 app.get("/api/weather-advice", async (req, res) => {
-  const user = getUserContext(req);
-  const location = (req.query.location as string || "長野県長野市").trim();
-  
-  const currentDb = readDB();
-  if (!currentDb.weatherAdviceCache) {
-    currentDb.weatherAdviceCache = {};
-  }
-  
-  // JST time helper to calculate JST Date YYYY-MM-DD
-  const todayJst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().substring(0, 10);
-  
-  const cacheKey = location;
-  const cached = currentDb.weatherAdviceCache[cacheKey];
-  
-  if (cached && cached.date === todayJst) {
-    return res.json({ advice: cached.content, date: cached.date, location });
-  }
-  
-  let generatedAdvice = "";
-  let geminiError: string | null = null;
-  if (geminiClient) {
-    try {
-      const prompt = `「${location}」の本日および明日・今週の最新の天気予報、気温、降水量、気象警告などの情報を調査してください。
+  try {
+    const user = getUserContext(req);
+    const location = (req.query.location as string || "長野県長野市").trim();
+    
+    const currentDb = readDB();
+    if (!currentDb.weatherAdviceCache) {
+      currentDb.weatherAdviceCache = {};
+    }
+    
+    // JST time helper to calculate JST Date YYYY-MM-DD
+    const todayJst = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().substring(0, 10);
+    
+    const cacheKey = location;
+    const cached = currentDb.weatherAdviceCache[cacheKey];
+    
+    if (cached && cached.date === todayJst) {
+      return res.json({ advice: cached.content, date: cached.date, location });
+    }
+    
+    let generatedAdvice = "";
+    let geminiError: string | null = null;
+    if (geminiClient) {
+      try {
+        const prompt = `「${location}」の本日および明日・今週の最新の天気予報、気温、降水量、気象警告などの情報を調査してください。
 最高気温や最低気温を特定する際、必ず「摂氏（℃、Celsius）」として取得してください。
 
 【超重要：華氏と摂氏の混同禁止・ダブルチェック強制】
@@ -496,97 +497,102 @@ app.get("/api/weather-advice", async (req, res) => {
 - 栽培や天気に関する絵文字「🌱」「☀️」「⚠️」「☔️」などを適宜交え、日本語で温かみのある表現にしてください。
 - 余計な説明、前置き、導入部分（「検索の結果…」「気象によると…」など）や挨拶文は一切含めず、「そのままお知らせバナーに表示」できるようなアドバイス文（2〜3文）だけを出力してください。`;
 
-      const aiResponse = await geminiClient.models.generateContent({
-        model: "gemini-3.1-flash-lite",
-        contents: prompt,
-        config: {
-          systemInstruction: "あなたは親切なAI家庭菜園・園芸アドバイザーです。アクティブ地域における最新の実際の気象予報を検索し、明日の栽培のお世話に必要なアドバイスを具体的・明確・簡潔に提示します。特に気温は絶対に摂氏（℃）に変換し、華氏（°F）をそのまま摂氏（℃）として記述するバグを徹底的に防止してください。",
-          tools: [{ googleSearch: {} }]
+        const aiResponse = await geminiClient.models.generateContent({
+          model: "gemini-3.1-flash-lite",
+          contents: prompt,
+          config: {
+            systemInstruction: "あなたは親切なAI家庭菜園・園芸アドバイザーです。アクティブ地域における最新の実際の気象予報を検索し、明日の栽培のお世話に必要なアドバイスを具体的・明確・簡潔に提示します。特に気温は絶対に摂氏（℃）に変換し、華氏（°F）をそのまま摂氏（℃）として記述するバグを徹底的に防止してください。",
+            tools: [{ googleSearch: {} }]
+          }
+        });
+        
+        generatedAdvice = aiResponse.text?.trim() || "";
+      } catch (err: any) {
+        const errMsg = err?.message || String(err);
+        console.warn("Weather advice Gemini call failed: using local fallback advice. Info:", errMsg);
+        if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("Quota") || errMsg.includes("limit")) {
+          geminiError = "quota_exceeded";
+        } else {
+          geminiError = "api_error";
         }
-      });
-      
-      generatedAdvice = aiResponse.text?.trim() || "";
-    } catch (err: any) {
-      const errMsg = err?.message || String(err);
-      console.warn("Weather advice Gemini call failed: using local fallback advice. Info:", errMsg);
-      if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("Quota") || errMsg.includes("limit")) {
-        geminiError = "quota_exceeded";
-      } else {
-        geminiError = "api_error";
       }
     }
+    
+    if (!generatedAdvice) {
+      const month = new Date(Date.now() + 9 * 60 * 60 * 1000).getMonth() + 1;
+      const fallbacks = [
+        `本日の ${location} の気象傾向を考慮すると、現在の ${month} 月は湿度や風向きの変動が大きくなりやすい時期です。今後の気温低下による冷え込み、または過湿過多を防を防ぐため、プランターの土が十分に乾いていることを確認してから水やりを行いましょう。🌱`,
+        `地域の最新気候に基づき、明日は予報温度が前後するおそれがあります。過剰な水分は根を傷める原因になりますので、明日一日の水やりは控えめにして、適宜風通しの良い環境で栽培を見守りましょう。⚠️`,
+        `気候シミュレーションによると、本日の ${location} 周辺は安定期に入っています。明日の日照と気温変化を確認しながら、多湿を好まない植物は夕方の灌水を避け、朝にさらっと吸水させる程度のお世話が推奨されます。🍁`
+      ];
+      generatedAdvice = fallbacks[Math.floor(Math.random() * fallbacks.length)];
+    }
+    
+    currentDb.weatherAdviceCache[cacheKey] = {
+      date: todayJst,
+      content: generatedAdvice
+    };
+    writeDB(currentDb);
+    
+    res.json({ advice: generatedAdvice, date: todayJst, location, geminiError });
+  } catch (err: any) {
+    console.error("Weather advice endpoint failed:", err);
+    res.status(500).json({ error: "Failed to load weather advice", details: err?.message || String(err) });
   }
-  
-  if (!generatedAdvice) {
-    const month = new Date(Date.now() + 9 * 60 * 60 * 1000).getMonth() + 1;
-    const fallbacks = [
-      `本日の ${location} の気象傾向を考慮すると、現在の ${month} 月は湿度や風向きの変動が大きくなりやすい時期です。今後の気温低下による冷え込み、または過湿過多を防を防ぐため、プランターの土が十分に乾いていることを確認してから水やりを行いましょう。🌱`,
-      `地域の最新気候に基づき、明日は予報温度が前後するおそれがあります。過剰な水分は根を傷める原因になりますので、明日一日の水やりは控えめにして、適宜風通しの良い環境で栽培を見守りましょう。⚠️`,
-      `気候シミュレーションによると、本日の ${location} 周辺は安定期に入っています。明日の日照と気温変化を確認しながら、多湿を好まない植物は夕方の灌水を避け、朝にさらっと吸水させる程度のお世話が推奨されます。🍁`
-    ];
-    generatedAdvice = fallbacks[Math.floor(Math.random() * fallbacks.length)];
-  }
-  
-  currentDb.weatherAdviceCache[cacheKey] = {
-    date: todayJst,
-    content: generatedAdvice
-  };
-  writeDB(currentDb);
-  
-  res.json({ advice: generatedAdvice, date: todayJst, location, geminiError });
 });
 
 app.get("/api/plants/harvest-predictions", async (req, res) => {
-  const user = getUserContext(req);
-  const force = req.query.force === "true";
-  
-  const currentDb = readDB();
-  
-  const now = new Date();
-  const lastCalc = currentDb.lastHarvestCalculationAt ? new Date(currentDb.lastHarvestCalculationAt) : null;
-  
-  // Hours elapsed since last run, default to Infinity if no previous run
-  const hoursSinceLastCalc = lastCalc ? (now.getTime() - lastCalc.getTime()) / (1000 * 60 * 60) : Infinity;
-  // Automatically trigger if last calculation was more than 72 hours ago (approx twice a week), or if forced
-  const shouldCalculate = hoursSinceLastCalc >= 72 || force;
-  
-  const activePlants = currentDb.plants.filter(p => p.userId === user.id && !p.archived && p.stage !== 'finished');
+  try {
+    const user = getUserContext(req);
+    const force = req.query.force === "true";
+    
+    const currentDb = readDB();
+    
+    const now = new Date();
+    const lastCalc = currentDb.lastHarvestCalculationAt ? new Date(currentDb.lastHarvestCalculationAt) : null;
+    
+    // Hours elapsed since last run, default to Infinity if no previous run
+    const hoursSinceLastCalc = lastCalc && !isNaN(lastCalc.getTime()) ? (now.getTime() - lastCalc.getTime()) / (1000 * 60 * 60) : Infinity;
+    // Automatically trigger if last calculation was more than 72 hours ago (approx twice a week), or if forced
+    const shouldCalculate = hoursSinceLastCalc >= 72 || force;
+    
+    const activePlants = currentDb.plants.filter(p => p.userId === user.id && !p.archived && p.stage !== 'finished');
 
-  let geminiError: string | null = null;
+    let geminiError: string | null = null;
 
-  if (shouldCalculate && activePlants.length > 0) {
-    let aiPredictions: { plantId: string; calculatedHarvestDate: string; reason: string }[] = [];
-    let usedAi = false;
+    if (shouldCalculate && activePlants.length > 0) {
+      let aiPredictions: { plantId: string; calculatedHarvestDate: string; reason: string }[] = [];
+      let usedAi = false;
 
-    // Attempt prediction utilizing Gemini Client if available
-    if (geminiClient && process.env.GEMINI_API_KEY) {
-      try {
-        const plantsPayload = activePlants.map(p => {
-          const logs = currentDb.growLogs
-            .filter(l => l.plantId === p.id)
-            .sort((a,b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime())
-            .slice(0, 5)
-            .map(l => ({
-              loggedAt: l.loggedAt,
-              ph: l.ph,
-              ec: l.ec,
-              waterTemp: l.waterTemp,
-              note: l.note
-            }));
-          
-          return {
-            id: p.id,
-            name: p.name,
-            variety: p.variety,
-            stage: p.stage,
-            sowingDate: p.sowingDate,
-            currentExpectedHarvestDate: p.expectedHarvestDate,
-            recentLogs: logs
-          };
-        });
+      // Attempt prediction utilizing Gemini Client if available
+      if (geminiClient && process.env.GEMINI_API_KEY) {
+        try {
+          const plantsPayload = activePlants.map(p => {
+            const logs = currentDb.growLogs
+              .filter(l => l.plantId === p.id)
+              .sort((a,b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime())
+              .slice(0, 5)
+              .map(l => ({
+                loggedAt: l.loggedAt,
+                ph: l.ph,
+                ec: l.ec,
+                waterTemp: l.waterTemp,
+                note: l.note
+              }));
+            
+            return {
+              id: p.id,
+              name: p.name,
+              variety: p.variety,
+              stage: p.stage,
+              sowingDate: p.sowingDate,
+              currentExpectedHarvestDate: p.expectedHarvestDate,
+              recentLogs: logs
+            };
+          });
 
-        const todayStr = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().substring(0, 10);
-        const prompt = `あなたは優秀な水耕栽培、園芸、およびプランター栽培のAIエキスパートです。
+          const todayStr = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().substring(0, 10);
+          const prompt = `あなたは優秀な水耕栽培、園芸、およびプランター栽培のAIエキスパートです。
 以下の植物リストと、それぞれの最新の成長ログから、最も適した「収穫予定日（calculatedHarvestDate、形式: YYYY-MM-DD）」を論理的に推測・算定してください。
 
 【検討材料】：
@@ -605,141 +611,151 @@ ${JSON.stringify(plantsPayload, null, 2)}
 
 各植物について「収穫予測日」と、その結論に至った科学的・園芸的アプローチに富む説明文（理由、日本語、30文字〜80文字程度、絵文字「🌱」「☀️」「⚠️」「🍎」を挿入して構いません）を生成してください。`;
 
-        const response = await geminiClient.models.generateContent({
-          model: "gemini-3.1-flash-lite",
-          contents: prompt,
-          config: {
-            systemInstruction: "あなたは家庭菜園やスマート水耕栽培の植物の成長動向を分析し、最適な収穫予定日を診断・更新するAIアドバイザーです。必ず指定した通りのJSON配列構造で正確に回答してください。",
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  plantId: { type: Type.STRING },
-                  calculatedHarvestDate: { type: Type.STRING, description: "収穫予想・算定予定日。YYYY-MM-DD形式" },
-                  reason: { type: Type.STRING, description: "なぜそのように推測したのか、成長ログに基づいた園芸アドバイスを含めた分かりやすい解説。日本語で1〜2文。" }
-                },
-                required: ["plantId", "calculatedHarvestDate", "reason"]
+          const response = await geminiClient.models.generateContent({
+            model: "gemini-3.1-flash-lite",
+            contents: prompt,
+            config: {
+              systemInstruction: "あなたは家庭菜園やスマート水耕栽培の植物の成長動向を分析し、最適な収穫予定日を診断・更新するAIアドバイザーです。必ず指定した通りのJSON配列構造で正確に回答してください。",
+              responseMimeType: "application/json",
+              responseSchema: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    plantId: { type: Type.STRING },
+                    calculatedHarvestDate: { type: Type.STRING, description: "収穫予想・算定予定日。YYYY-MM-DD形式" },
+                    reason: { type: Type.STRING, description: "なぜそのように推測したのか、成長ログに基づいた園芸アドバイスを含めた分かりやすい解説。日本語で1〜2文。" }
+                  },
+                  required: ["plantId", "calculatedHarvestDate", "reason"]
+                }
               }
             }
+          });
+
+          if (response.text) {
+            const parsed = JSON.parse(response.text.trim());
+            if (Array.isArray(parsed)) {
+              aiPredictions = parsed;
+              usedAi = true;
+            }
           }
+        } catch (err: any) {
+          const errMsg = err?.message || String(err);
+          console.warn("Gemini harvest calculation error, falling back to local algorithm. Info:", errMsg);
+          if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("Quota") || errMsg.includes("limit")) {
+            geminiError = "quota_exceeded";
+          } else {
+            geminiError = "api_error";
+          }
+        }
+      }
+
+      // Local Algorithm Fallback if AI is unconfigured/depleted properties/errored
+      if (!usedAi) {
+        aiPredictions = activePlants.map(p => {
+          const logs = currentDb.growLogs
+            .filter(l => l.plantId === p.id)
+            .sort((a,b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime());
+          
+          let sowing = new Date(p.sowingDate);
+          if (isNaN(sowing.getTime())) {
+            sowing = new Date();
+          }
+          let standardDays = 60; // default average
+          const varietyLower = (p.variety || "").toLowerCase();
+          
+          if (varietyLower.includes("トマト") || varietyLower.includes("tomato")) {
+            standardDays = 75;
+          } else if (varietyLower.includes("レタス") || varietyLower.includes("lettuce") || varietyLower.includes("葉") || varietyLower.includes("ほうれん草")) {
+            standardDays = 40;
+          } else if (varietyLower.includes("バジル") || varietyLower.includes("ハーブ") || varietyLower.includes("ミント")) {
+            standardDays = 35;
+          } else if (varietyLower.includes("イチゴ") || varietyLower.includes("strawberry")) {
+            standardDays = 90;
+          }
+
+          let adjustment = 0;
+          if (p.stage === "flowering") {
+            adjustment -= 5;
+          } else if (p.stage === "harvest") {
+            adjustment -= 15;
+          }
+
+          const logsText = logs.slice(0,5).map(l => (l.note || "")).join(" ");
+          if (logsText.includes("遅") || logsText.includes("元気がない") || logsText.includes("枯れ") || logsText.includes("冷")) {
+            adjustment += 7;
+          }
+          if (logsText.includes("順調") || logsText.includes("開花") || logsText.includes("実") || logsText.includes("おっきく") || logsText.includes("成長")) {
+            adjustment -= 3;
+          }
+
+          let finalDate = new Date(sowing.getTime() + (standardDays + adjustment) * 24 * 60 * 60 * 1000);
+          if (isNaN(finalDate.getTime())) {
+            finalDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+          }
+          const today = new Date();
+          today.setHours(0,0,0,0);
+          let returnDate = finalDate;
+          if (finalDate < today) {
+            returnDate = new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000); // 5 days from today if theoretically in past
+          }
+
+          return {
+            plantId: p.id,
+            calculatedHarvestDate: returnDate.toISOString().substring(0, 10),
+            reason: `標準適期(${standardDays}日間)を主軸に、現在の成長段階「${p.stage}」や、ログ(${logs.length}件)の記述傾向から自動算定した収穫予測日です。 🌱`
+          };
         });
-
-        if (response.text) {
-          const parsed = JSON.parse(response.text.trim());
-          if (Array.isArray(parsed)) {
-            aiPredictions = parsed;
-            usedAi = true;
-          }
-        }
-      } catch (err: any) {
-        const errMsg = err?.message || String(err);
-        console.warn("Gemini harvest calculation error, falling back to local algorithm. Info:", errMsg);
-        if (errMsg.includes("429") || errMsg.includes("quota") || errMsg.includes("Quota") || errMsg.includes("limit")) {
-          geminiError = "quota_exceeded";
-        } else {
-          geminiError = "api_error";
-        }
       }
-    }
 
-    // Local Algorithm Fallback if AI is unconfigured/depleted properties/errored
-    if (!usedAi) {
-      aiPredictions = activePlants.map(p => {
-        const logs = currentDb.growLogs
-          .filter(l => l.plantId === p.id)
-          .sort((a,b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime());
-        
-        const sowing = new Date(p.sowingDate);
-        let standardDays = 60; // default average
-        const varietyLower = (p.variety || "").toLowerCase();
-        
-        if (varietyLower.includes("トマト") || varietyLower.includes("tomato")) {
-          standardDays = 75;
-        } else if (varietyLower.includes("レタス") || varietyLower.includes("lettuce") || varietyLower.includes("葉") || varietyLower.includes("ほうれん草")) {
-          standardDays = 40;
-        } else if (varietyLower.includes("バジル") || varietyLower.includes("ハーブ") || varietyLower.includes("ミント")) {
-          standardDays = 35;
-        } else if (varietyLower.includes("イチゴ") || varietyLower.includes("strawberry")) {
-          standardDays = 90;
+      // Apply predictions to database and write back
+      currentDb.harvestPredictions = currentDb.harvestPredictions || [];
+      
+      for (const pred of aiPredictions) {
+        // 1. Update plant expectedHarvestDate directly
+        const pIdx = currentDb.plants.findIndex(p => p.id === pred.plantId);
+        if (pIdx !== -1) {
+          currentDb.plants[pIdx].expectedHarvestDate = pred.calculatedHarvestDate;
+          currentDb.plants[pIdx].updatedAt = new Date().toISOString();
         }
 
-        let adjustment = 0;
-        if (p.stage === "flowering") {
-          adjustment -= 5;
-        } else if (p.stage === "harvest") {
-          adjustment -= 15;
-        }
-
-        const logsText = logs.slice(0,5).map(l => (l.note || "")).join(" ");
-        if (logsText.includes("遅") || logsText.includes("元気がない") || logsText.includes("枯れ") || logsText.includes("冷")) {
-          adjustment += 7;
-        }
-        if (logsText.includes("順調") || logsText.includes("開花") || logsText.includes("実") || logsText.includes("おっきく") || logsText.includes("成長")) {
-          adjustment -= 3;
-        }
-
-        const finalDate = new Date(sowing.getTime() + (standardDays + adjustment) * 24 * 60 * 60 * 1000);
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        let returnDate = finalDate;
-        if (finalDate < today) {
-          returnDate = new Date(today.getTime() + 5 * 24 * 60 * 60 * 1000); // 5 days from today if theoretically in past
-        }
-
-        return {
-          plantId: p.id,
-          calculatedHarvestDate: returnDate.toISOString().substring(0, 10),
-          reason: `標準適期(${standardDays}日間)を主軸に、現在の成長段階「${p.stage}」や、ログ(${logs.length}件)の記述傾向から自動算定した収穫予測日です。 🌱`
+        // 2. Put prediction into our user-facing predictions table (overwrite or insert)
+        const existingIdx = currentDb.harvestPredictions.findIndex(hp => hp.plantId === pred.plantId);
+        const predictionRecord = {
+          id: "pred-" + Date.now() + "-" + Math.random().toString(36).substr(2, 5),
+          plantId: pred.plantId,
+          calculatedHarvestDate: pred.calculatedHarvestDate,
+          reason: pred.reason,
+          updatedAt: new Date().toISOString()
         };
-      });
-    }
 
-    // Apply predictions to database and write back
-    currentDb.harvestPredictions = currentDb.harvestPredictions || [];
-    
-    for (const pred of aiPredictions) {
-      // 1. Update plant expectedHarvestDate directly
-      const pIdx = currentDb.plants.findIndex(p => p.id === pred.plantId);
-      if (pIdx !== -1) {
-        currentDb.plants[pIdx].expectedHarvestDate = pred.calculatedHarvestDate;
-        currentDb.plants[pIdx].updatedAt = new Date().toISOString();
+        if (existingIdx !== -1) {
+          currentDb.harvestPredictions[existingIdx] = predictionRecord;
+        } else {
+          currentDb.harvestPredictions.push(predictionRecord);
+        }
       }
 
-      // 2. Put prediction into our user-facing predictions table (overwrite or insert)
-      const existingIdx = currentDb.harvestPredictions.findIndex(hp => hp.plantId === pred.plantId);
-      const predictionRecord = {
-        id: "pred-" + Date.now() + "-" + Math.random().toString(36).substr(2, 5),
-        plantId: pred.plantId,
-        calculatedHarvestDate: pred.calculatedHarvestDate,
-        reason: pred.reason,
-        updatedAt: new Date().toISOString()
-      };
-
-      if (existingIdx !== -1) {
-        currentDb.harvestPredictions[existingIdx] = predictionRecord;
-      } else {
-        currentDb.harvestPredictions.push(predictionRecord);
-      }
+      currentDb.lastHarvestCalculationAt = now.toISOString();
+      writeDB(currentDb);
     }
 
-    currentDb.lastHarvestCalculationAt = now.toISOString();
-    writeDB(currentDb);
+    // Reload the updated DB to reply with proper user scoping
+    const dbNow = readDB();
+    const predictions = dbNow.harvestPredictions ? dbNow.harvestPredictions.filter(hp => 
+      dbNow.plants.some(p => p.id === hp.plantId && p.userId === user.id && !p.archived && p.stage !== 'finished')
+    ) : [];
+
+    res.json({
+      predictions,
+      lastHarvestCalculationAt: dbNow.lastHarvestCalculationAt,
+      calculatedThisTurn: shouldCalculate,
+      geminiError
+    });
+  } catch (err: any) {
+    console.error("Harvest predictions handler failed unexpectedly:", err);
+    res.status(500).json({ error: "Failed to load harvest predictions", details: err?.message || String(err) });
   }
-
-  // Reload the updated DB to reply with proper user scoping
-  const dbNow = readDB();
-  const predictions = dbNow.harvestPredictions ? dbNow.harvestPredictions.filter(hp => 
-    dbNow.plants.some(p => p.id === hp.plantId && p.userId === user.id && !p.archived && p.stage !== 'finished')
-  ) : [];
-
-  res.json({
-    predictions,
-    lastHarvestCalculationAt: dbNow.lastHarvestCalculationAt,
-    calculatedThisTurn: shouldCalculate,
-    geminiError
-  });
 });
 
 app.put("/api/auth/profile", (req, res) => {
@@ -765,48 +781,53 @@ app.put("/api/auth/profile", (req, res) => {
 
 // Fetch current temperature based on user location using Gemini Search Grounding
 app.get("/api/weather-current", async (req, res) => {
-  const user = getUserContext(req);
-  const location = (req.query.location as string || "長野県長野市").trim();
-  
-  let currentTemp = 20; // Default fallback
-  
-  if (geminiClient) {
-    try {
-      const prompt = `「${location}」の現在の最高気温、最低気温、平均的な外気温を調べてください。
+  try {
+    const user = getUserContext(req);
+    const location = (req.query.location as string || "長野県長野市").trim();
+    
+    let currentTemp = 20; // Default fallback
+    
+    if (geminiClient) {
+      try {
+        const prompt = `「${location}」の現在の最高気温、最低気温、平均的な外気温を調べてください。
 数値を1つだけ。水耕栽培や土耕栽培の測定データに自動入力するための「摂氏（℃、Celsius）の現在（最高または平均）気温」を半角数値（小数点1位以下は四捨五入して整数、または1位まで、例: 22 または 21.5）だけで出力してください。
 【注意：華氏と摂氏の混同禁止】絶対に華氏（°F）の生の数値をそのまま出力しないでください。華氏で情報が取得された場合は必ず摂氏（℃）に変換してください。日本において「80℃」や「75℃」などの気温は物理的に不可能です。
 単位、テキスト、前置きは一切不要です。（出力形式の例： 21.5 または 18）`;
 
-      const aiResponse = await geminiClient.models.generateContent({
-        model: "gemini-3.1-flash-lite",
-        contents: prompt,
-        config: {
-          systemInstruction: "あなたは現在のリアルタイムの現地気温を計測して数値だけで回答するシステムです。気温は必ず「摂氏（℃）」で答え、華氏（°F）をそのまま出力することは厳禁です。余計な文字列（「摂氏」「度」「°C」など）を絶対に含めないで、数値「23.1」や「18」のように出力します。",
-          tools: [{ googleSearch: {} }]
+        const aiResponse = await geminiClient.models.generateContent({
+          model: "gemini-3.1-flash-lite",
+          contents: prompt,
+          config: {
+            systemInstruction: "あなたは現在のリアルタイムの現地気温を計測して数値だけで回答するシステムです。気温は必ず「摂氏（℃）」で答え、華氏（°F）をそのまま出力することは厳禁です。余計な文字列（「摂氏」「度」「°C」など）を絶対に含めないで、数値「23.1」や「18」のように出力します。",
+            tools: [{ googleSearch: {} }]
+          }
+        });
+        
+        const text = aiResponse.text?.trim() || "";
+        const match = text.match(/[\d.]+/);
+        if (match) {
+          let val = parseFloat(match[0]);
+          // 華氏の誤認（例: 日本で45℃以上の気温は極めて稀、70℃〜100℃は確実に華氏誤認）に対する自動セーフティガード
+          if (val > 45) {
+            val = Math.round(((val - 32) * 5 / 9) * 10) / 10;
+          }
+          currentTemp = val;
         }
-      });
-      
-      const text = aiResponse.text?.trim() || "";
-      const match = text.match(/[\d.]+/);
-      if (match) {
-        let val = parseFloat(match[0]);
-        // 華氏の誤認（例: 日本で45℃以上の気温は極めて稀、70℃〜100℃は確実に華氏誤認）に対する自動セーフティガード
-        if (val > 45) {
-          val = Math.round(((val - 32) * 5 / 9) * 10) / 10;
-        }
-        currentTemp = val;
+      } catch (err: any) {
+        console.warn("Weather temp Gemini search failed:", err);
       }
-    } catch (err: any) {
-      console.warn("Weather temp Gemini search failed:", err);
+    } else {
+      // Month fallback
+      const month = new Date().getMonth() + 1;
+      const monthlyTemps = [5, 6, 12, 17, 21, 24, 28, 29, 25, 19, 13, 8];
+      currentTemp = monthlyTemps[month - 1];
     }
-  } else {
-    // Month fallback
-    const month = new Date().getMonth() + 1;
-    const monthlyTemps = [5, 6, 12, 17, 21, 24, 28, 29, 25, 19, 13, 8];
-    currentTemp = monthlyTemps[month - 1];
-  }
 
-  res.json({ temp: currentTemp });
+    res.json({ temp: currentTemp });
+  } catch (err: any) {
+    console.error("Weather current endpoint failed unexpectedly:", err);
+    res.status(500).json({ error: "Failed to load current weather", details: err?.message || String(err) });
+  }
 });
 
 
