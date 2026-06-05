@@ -1353,7 +1353,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
               onClick={() => setActiveTab("ai")}
               className={`px-4.5 py-3 font-bold border-b-2 transition-all cursor-pointer ${activeTab === "ai" ? "border-emerald-600 text-emerald-800 font-extrabold" : "border-transparent text-slate-500 hover:text-slate-800"}`}
             >
-              ✨ AI栽培アドバイザー
+              ✨ AIアドバイザー
             </button>
             <button 
               onClick={() => setActiveTab("photos")}
@@ -1985,7 +1985,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                         </div>
                         <div className="p-3.5 bg-white border border-slate-200/70 rounded-2xl text-xs space-y-1.5 shadow-xs font-sans leading-relaxed">
                           <p className="font-extrabold text-slate-800 text-xs">
-                            たねログAI栽培アドバイザーです！ 🌱
+                            たねログAIアドバイザーです！ 🌱
                           </p>
                           <p className="text-slate-650 font-medium">
                             この植物の「種まき日」や「これまでの育成・お世話ログ」を自動で読み込んでいます。
@@ -2025,7 +2025,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                         type="text"
                         value={aiPrompt}
                         onChange={(e) => setAiPrompt(e.target.value)}
-                        placeholder="（例）今のpH値を踏まえた水換えタイミングは？"
+                        placeholder="（例）害虫が発生した時の対策や、収穫時期の目安は？"
                         disabled={sendingAi}
                         className="flex-1 p-2.5 bg-white border border-slate-200 rounded-xl text-base md:text-xs font-sans text-slate-750 focus:border-indigo-500 focus:outline-hidden disabled:opacity-50"
                       />
