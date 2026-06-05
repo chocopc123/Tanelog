@@ -1964,20 +1964,6 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
             {activeTab === "ai" && (
               <div className="space-y-6 animate-in fade-in duration-200">
                 
-                {/* Visual context notification */}
-                <div className="bg-emerald-50/50 p-4.5 rounded-2xl border border-emerald-100 flex items-start gap-3">
-                  <Sparkles className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                  <div className="text-xs space-y-1">
-                    <h4 className="font-extrabold text-emerald-800">
-                      {isSoil ? "たねログ・土耕AIアドバイザー接続中" : "たねログ・水耕AIアドバイザー接続中"}
-                    </h4>
-                    <p className="text-slate-600 leading-relaxed font-sans">
-                      会話の度に、植物の<strong>「sowing_date（種まき日：{selectedPlant.sowingDate}）」、「現在の育成ステージ（{selectedPlant.stage}）」、および「登録されている観察測定ログ」や「直近の施肥履歴」</strong>をAIへコンテキストとして自動送信。
-                      病害虫の予防対策や土の乾湿・日当り、適正なアドバイスを的確に導きます！
-                    </p>
-                  </div>
-                </div>
-
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                   {/* Messages board */}
                   <div className="lg:col-span-2 border border-slate-150 rounded-2xl flex flex-col h-[480px] bg-white shadow-xs overflow-hidden">
@@ -1999,11 +1985,11 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                         </div>
                         <div className="p-3.5 bg-white border border-slate-200/70 rounded-2xl text-xs space-y-1.5 shadow-xs font-sans leading-relaxed">
                           <p className="font-extrabold text-slate-800 text-xs">
-                            栽培アドバイザーです！ 🌱
+                            たねログAI栽培アドバイザーです！ 🌱
                           </p>
                           <p className="text-slate-650 font-medium">
-                            この植物の育成データ（種まき日、水温/pH等の測定ログ、直近の施肥記録）をバインドしています。
-                            病気の兆候や、「収穫期はいつ頃？」「pH値が不安定だけどどうすればいい？」など、お気軽に質問してください。
+                            この植物の「種まき日」や「これまでの育成・お世話ログ」を自動で読み込んでいます。
+                            「収穫はいつ頃？」「元気がない時はどうすればいい？」など、気になることを何でもお気軽にご相談くださいね！
                           </p>
                         </div>
                       </div>

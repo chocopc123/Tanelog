@@ -141,7 +141,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       {/* Welcome Banner */}
       <div id="welcome-banner" className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white p-6 rounded-2xl shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <span className="text-emerald-100 text-xs font-mono tracking-wider uppercase">Smart Garden OS</span>
+          <span className="text-emerald-100 text-xs font-mono tracking-wider uppercase">TANELOG OS</span>
           <h2 className="text-2xl font-bold tracking-tight mt-1">おかえりなさい、{user.name} さん 🌱</h2>
           <p className="text-emerald-50 text-sm mt-1 max-w-xl">
             AI連携による高精度スケジュールと、スマート育成記録により、家庭菜園、ベランダプランター、お部屋での栽培管理をパーフェクトにサポートします。
