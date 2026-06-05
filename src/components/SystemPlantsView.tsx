@@ -1208,15 +1208,6 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
 
             <div className="flex gap-2 font-sans text-xs">
               <button 
-                onClick={handleTriggerAISchedule}
-                disabled={generatingSchedule}
-                className="px-3.5 py-2 text-xs font-bold text-teal-800 bg-teal-50 border border-teal-100 hover:bg-teal-100 disabled:opacity-50 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
-              >
-                <Sparkles className="w-4 h-4 text-teal-600" />
-                {generatingSchedule ? "カレンダー計算中..." : "AIにスケジュール提案を要求する"}
-              </button>
-
-              <button 
                 onClick={async () => {
                   const toArchived = !selectedPlant.archived;
                   requestConfirm(
@@ -1238,7 +1229,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                 title={selectedPlant.archived ? "通常栽培に差し戻す" : "栽培を終えて履歴としてアーカイブする"}
               >
                 <span>📦</span>
-                {selectedPlant.archived ? "通常エリアに復元" : "栽培完了 (アーカイブ)"}
+                {selectedPlant.archived ? "通常エリアに復元" : "栽培完了"}
               </button>
 
               <button 
@@ -1964,16 +1955,33 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
             {activeTab === "ai" && (
               <div className="space-y-6 animate-in fade-in duration-200">
                 
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div className="flex flex-col gap-6">
+                  {/* AI Schedule Generation Card */}
+                  <div className="border border-emerald-100 rounded-2xl p-5 bg-emerald-50/20 text-emerald-950 space-y-3.5 text-left shadow-2xs">
+                    <h4 className="font-extrabold text-emerald-900 text-xs flex items-center gap-1.5 font-sans">
+                      <Sparkles className="w-4 h-4 text-emerald-600 animate-pulse" /> AIスケジュール提案
+                    </h4>
+                    <p className="text-[11px] text-slate-650 leading-relaxed font-semibold font-sans">
+                      栽培記録に基づいて、最適な<strong>水やり、施肥、害虫予防や収穫予測のスケジュール</strong>をAIで動的に追加生成します！
+                    </p>
+                    
+                    <button 
+                      type="button"
+                      onClick={handleTriggerAISchedule}
+                      disabled={generatingSchedule}
+                      className="w-full sm:w-auto py-3 px-5 bg-emerald-600 hover:bg-emerald-750 active:bg-emerald-800 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-xs hover:shadow-md transition-all cursor-pointer flex items-center justify-center sm:inline-flex gap-2"
+                    >
+                      <RefreshCcw className={`w-3.5 h-3.5 ${generatingSchedule ? "animate-spin" : ""}`} />
+                      {generatingSchedule ? "スケジュール策定中..." : "AIスケジュール提案を実行"}
+                    </button>
+                  </div>
+
                   {/* Messages board */}
-                  <div className="lg:col-span-2 border border-slate-150 rounded-2xl flex flex-col h-[480px] bg-white shadow-xs overflow-hidden">
+                  <div className="border border-slate-150 rounded-2xl flex flex-col h-[480px] bg-white shadow-xs overflow-hidden">
                     {/* Header bar */}
-                    <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center justify-between shrink-0">
+                    <div className="px-4 py-3 border-b border-slate-100 bg-slate-50 flex items-center shrink-0">
                       <span className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-                        <MessageSquare className="w-4 h-4 text-slate-500" /> AI chat
-                      </span>
-                      <span className="text-[10px] font-extrabold text-indigo-650 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100/35">
-                        Gemini LLM
+                        <MessageSquare className="w-4 h-4 text-slate-500" /> AIチャット
                       </span>
                     </div>
 
@@ -2037,28 +2045,6 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                         {sendingAi ? "解析中..." : "質問する"}
                       </button>
                     </form>
-                  </div>
-
-                  {/* Right side Operations sidebar */}
-                  <div className="space-y-4">
-                    <div className="border border-indigo-100 rounded-2xl p-5 bg-indigo-50/25 text-indigo-950 space-y-3.5 text-left shadow-2xs">
-                      <h4 className="font-extrabold text-indigo-900 text-xs flex items-center gap-1.5 font-sans">
-                        <Sparkles className="w-4 h-4 text-indigo-600" /> Gemini 栽培スケジュール
-                      </h4>
-                      <p className="text-[11px] text-slate-650 leading-relaxed font-semibold font-sans">
-                        現在の植物タイプ、播種からの経過日数、直近の測定ログに基づいて、最適な<strong>水やり/全水換え、施肥、害虫予防や収穫予測カレンダースケジュール</strong>をAIで動的に追加生成します！
-                      </p>
-                      
-                      <button 
-                        type="button"
-                        onClick={handleTriggerAISchedule}
-                        disabled={generatingSchedule}
-                        className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 text-white font-extrabold text-xs rounded-xl shadow-xs hover:shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
-                      >
-                        <RefreshCcw className={`w-3.5 h-3.5 ${generatingSchedule ? "animate-spin" : ""}`} />
-                        {generatingSchedule ? "スケジュール策定中..." : "AIカレンダースケジュール生成"}
-                      </button>
-                    </div>
                   </div>
                 </div>
 
