@@ -64,7 +64,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           <form onSubmit={handleProfileSubmit} className="space-y-4">
             <div>
               <label className="block text-slate-500 text-xs font-bold mb-1.5 font-sans">
-                登録メールアドレス (不変)
+                登録メールアドレス
               </label>
               <input 
                 type="text" 
@@ -97,7 +97,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               />
               <div className="flex-1">
                 <label htmlFor="showPhEc" className="text-slate-700 text-xs font-bold font-sans select-none cursor-pointer block">
-                  pH・EC測定の高度な水質管理をサポートする
+                  高度な水質管理をサポートする
                 </label>
                 <span className="text-[10px] text-slate-400 leading-snug block mt-0.5">
                   チェックを外すと、pHやEC値、水温の入力フォームが非表示になり、カレンダーのAI提案でも水質測定タスクが提案されなくなります。
@@ -128,8 +128,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
             </h3>
 
             <p className="text-slate-500 text-[11px] leading-relaxed mb-4">
-              お住まいの地域名（例: <span className="font-bold text-slate-700">「長野県長野市」「北海道札幌市」「東京都」</span>など）を設定します。
-              AIチャットやカレンダー提案時に、現在の季節に応じた外気温や湿度等の地域統計情報（Gemini Search Grounding）を自動考慮します。
+              お住まいの地域名（例: <span className="font-bold text-slate-700">「北海道札幌市」「東京都」</span>など）を設定します。
+              AIチャットやカレンダー提案時に、現在の季節に応じた外気温や湿度等の地域統計情報を自動考慮します。
             </p>
 
             <form onSubmit={handleLocationSubmit} className="space-y-4">
@@ -163,7 +163,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
           <div className="mt-3 p-3 bg-teal-50/50 rounded-xl border border-teal-100 text-[10px] text-teal-800 flex gap-1.5">
             <Info className="w-4 h-4 shrink-0 text-teal-600" />
-            <span>冷涼地（長野・北陸等）では冬場の水温底冷え対策、都市部マンションでは夏場の密閉熱による根腐れ等、AIが自動解析対応します。</span>
+            <span>冷涼地では冬場の水温底冷え対策、都市部マンションでは夏場の密閉熱による根腐れ等、AIが自動解析対応します。</span>
           </div>
         </div>
 
