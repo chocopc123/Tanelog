@@ -931,20 +931,14 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
         <div className="space-y-6">
           
           {/* Header Action cards */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
+          <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-xs">
+            <div className="text-left">
+              <h2 className="text-xl font-extrabold text-slate-800 flex items-center gap-2">
                 <Sprout className="w-5 h-5 text-emerald-600" /> プランターと植物プロファイル
               </h2>
-              <p className="text-slate-500 text-xs">色々なタイプのプランターや室内水耕まで、栽培環境と植物のプロファイルを一元管理できます。</p>
-            </div>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => setShowAddSys(!showAddSys)}
-                className="px-4 py-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors rounded-xl flex items-center gap-1.5 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" /> プランターを追加する
-              </button>
+              <p className="text-slate-500 text-xs mt-1 leading-relaxed">
+                色々なタイプのプランターや室内水耕まで、栽培環境と植物のプロファイルを一元管理できます。
+              </p>
             </div>
           </div>
 
@@ -1148,13 +1142,22 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                         栽培完了の記録があるプランター ({displayedActiveSystems.length})
                       </h3>
                     ) : (
-                      <h3 id="active-systems-header" className="text-xs font-bold text-slate-700 flex items-center gap-1.5 px-1 text-left">
-                        <span className="flex h-2 w-2 relative">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-50"></span>
-                        </span>
-                        稼働中のプランター ({displayedActiveSystems.length})
-                      </h3>
+                      <div className="flex items-center justify-between gap-4 px-1">
+                        <h3 id="active-systems-header" className="text-xs font-bold text-slate-700 flex items-center gap-1.5 text-left">
+                          <span className="flex h-2 w-2 relative">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-50"></span>
+                          </span>
+                          稼働中のプランター ({displayedActiveSystems.length})
+                        </h3>
+                        <button 
+                          type="button"
+                          onClick={() => setShowAddSys(!showAddSys)}
+                          className="px-3 py-1.5 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white transition-all rounded-xl flex items-center gap-1.5 cursor-pointer shadow-3xs"
+                        >
+                          <Plus className="w-3.5 h-3.5" /> プランターを追加する
+                        </button>
+                      </div>
                     )}
                     <div className="space-y-6">
                       {displayedActiveSystems.map((sys) => {
