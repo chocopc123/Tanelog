@@ -24,6 +24,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   // Current calendar date state
   const [currentDate, setCurrentDate] = useState<Date>(new Date("2026-06-03")); // Seed matching current local time metadata
   const [filter, setFilter] = useState<"all" | "approved" | "completed">("all");
+  const [listStatusTab, setListStatusTab] = useState<"pending_approved" | "completed" | "all">("pending_approved");
+  const [listDateFilter, setListDateFilter] = useState<string>("2026-06");
 
   // Edit states for proposals
   const [editingProposal, setEditingProposal] = useState<any | null>(null);
@@ -208,8 +210,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   };
 
   const listFilteredProposals = activeProposals.filter(p => {
-    if (filter === "all") return true;
-    return p.status === filter;
+    // 1. ステータスフィルター (未完了 vs 完了済み vs すべて)
+    const isApproved = p.status === "approved" || p.status === "pending";
+    if (listStatusTab === "pending_approved") {
+      if (!isApproved) return false;
+    } else if (listStatusTab === "completed") {
+      if (p.status !== "completed") return false;
+    }
+
+    // 2. 予定月フィルター (月が指定されている場合のみ適用)
+    if (listDateFilter) {
+      if (!p.proposedDate.startsWith(listDateFilter)) return false;
+    }
+
+    return true;
+  }).sort((a, b) => {
+    // 予定日の昇順でソート（日付が近い順・古い順に表示してスケジュールを管理しやすくする）
+    return a.proposedDate.localeCompare(b.proposedDate);
   });
 
   return (
@@ -379,6 +396,81 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
             >
               <Plus className="w-3 h-3" /> 新規登録
             </button>
+          </div>
+
+          {/* List specific tabs (未完了 vs 完了済み vs すべて) */}
+          <div className="mt-3 bg-slate-100 p-1 rounded-xl flex text-xs font-sans select-none">
+            <button 
+              type="button"
+              onClick={() => setListStatusTab("pending_approved")}
+              className={`flex-1 text-center py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                listStatusTab === "pending_approved" ? "bg-white text-emerald-750 shadow-3xs" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              未完了
+            </button>
+            <button 
+              type="button"
+              onClick={() => setListStatusTab("completed")}
+              className={`flex-1 text-center py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                listStatusTab === "completed" ? "bg-white text-blue-750 shadow-3xs" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              完了済み
+            </button>
+            <button 
+              type="button"
+              onClick={() => setListStatusTab("all")}
+              className={`flex-1 text-center py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                listStatusTab === "all" ? "bg-white text-slate-800 shadow-3xs" : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              すべて
+            </button>
+          </div>
+
+          {/* Month Filter (予定月によるフィルター) */}
+          <div className="mt-3 p-2.5 bg-slate-50/70 rounded-xl border border-slate-100/60 flex flex-col gap-1.5">
+            <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wide">📅 予定月によるフィルター</span>
+            <div className="flex items-center justify-between bg-white px-2 py-1.5 rounded-lg border border-slate-200">
+              <button
+                type="button"
+                onClick={() => {
+                  let baseMonth = listDateFilter || "2026-06";
+                  const [y, m] = baseMonth.split("-").map(Number);
+                  const d = new Date(y, m - 2, 1);
+                  const prevMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                  setListDateFilter(prevMonth);
+                }}
+                className="p-1 hover:bg-slate-100 rounded text-slate-650 cursor-pointer flex items-center justify-center transition-colors border border-slate-100"
+                title="前月"
+              >
+                <ChevronLeft className="w-4 h-4 text-slate-600" />
+              </button>
+
+              <span className="text-xs font-bold text-slate-700 min-w-[90px] text-center select-none">
+                {(() => {
+                  const baseMonth = listDateFilter || "2026-06";
+                  const [y, m] = baseMonth.split("-");
+                  return `${y}年 ${Number(m)}月`;
+                })()}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => {
+                  let baseMonth = listDateFilter || "2026-06";
+                  const [y, m] = baseMonth.split("-").map(Number);
+                  const d = new Date(y, m, 1);
+                  const nextMonth = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+                  setListDateFilter(nextMonth);
+                }}
+                className="p-1 hover:bg-slate-100 rounded text-slate-650 cursor-pointer flex items-center justify-center transition-colors border border-slate-100"
+                title="翌月"
+              >
+                <ChevronRight className="w-4 h-4 text-slate-600" />
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto mt-3 pr-1 space-y-3">
