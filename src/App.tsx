@@ -11,6 +11,7 @@ import {
   Activity, Calendar as CalendarIcon, Droplets, Settings, LogOut, Sprout, ShieldAlert, CloudRain, CheckSquare, Sparkles 
 } from "lucide-react";
 import { auth, GoogleAuthProvider, signInWithPopup } from "./firebase";
+import { TanelogLoader } from "./components/TanelogLoader";
 
 const retryFetch = async (
   url: string,
@@ -43,6 +44,8 @@ export default function App() {
   const [token, setToken] = useState<string | null>(getCleanToken());
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState("");
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [initialLoadingMessage, setInitialLoadingMessage] = useState("たねログを準備しています...");
 
   // Navigation Panel Tab
   const [activeTab, setActiveTab] = useState<string>("dashboard");
@@ -142,19 +145,44 @@ export default function App() {
   // Loading Feedback
   const [loading, setLoading] = useState(false);
 
+  // 初回起動時、またはトークン切り替え時に実行される統合ロード関数
+  const loadUserDataAndSync = async (userToken: string, preloadedUser?: User, isNewLogin: boolean = false) => {
+    setIsInitialLoading(true);
+    if (!isNewLogin) {
+      setInitialLoadingMessage("アカウント情報を読み込んでいます...");
+    }
+
+    try {
+      const currentUser = preloadedUser || await fetchCurrentUser(userToken);
+
+      if (currentUser) {
+        setUser(currentUser);
+        
+        // 栽培データ同期
+        await syncDatabase(false, userToken);
+        
+        // AI予測データ同期
+        await fetchPredictions(false, userToken);
+      } else {
+        console.warn("User data not found or session expired.");
+        handleLogout();
+      }
+    } catch (e) {
+      console.warn("Failed to load user session or sync data:", e);
+      handleLogout();
+    } finally {
+      setIsInitialLoading(false);
+    }
+  };
+
   // Synchronous initial fetch
   useEffect(() => {
     if (token) {
-      fetchCurrentUser();
+      loadUserDataAndSync(token);
+    } else {
+      setIsInitialLoading(false);
     }
-  }, [token]);
-
-  useEffect(() => {
-    if (user) {
-      syncDatabase();
-      fetchPredictions(false);
-    }
-  }, [user]);
+  }, []);
 
   // Periodic slow polling to fetch any co-cultivator edits
   useEffect(() => {
@@ -168,12 +196,13 @@ export default function App() {
     return () => clearInterval(interval);
   }, [user]);
 
-  const fetchPredictions = async (force: boolean = false) => {
-    if (!token) return;
+  const fetchPredictions = async (force: boolean = false, overrideToken?: string) => {
+    const activeToken = overrideToken || token;
+    if (!activeToken) return;
     setLoadingPredictions(true);
     try {
       const res = await retryFetch(`/api/plants/harvest-predictions?force=${force}`, {
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { "Authorization": `Bearer ${activeToken}` }
       });
       if (res.ok) {
         const contentType = res.headers.get("content-type");
@@ -201,16 +230,19 @@ export default function App() {
     }
   };
 
-  const fetchCurrentUser = async () => {
+  const fetchCurrentUser = async (overrideToken?: string) => {
+    const activeToken = overrideToken || token;
+    if (!activeToken) return null;
     try {
       const res = await retryFetch("/api/auth/me", {
-        headers: { "Authorization": `Bearer ${token}` }
+        headers: { "Authorization": `Bearer ${activeToken}` }
       });
       if (res.ok) {
         const contentType = res.headers.get("content-type");
         if (contentType && contentType.includes("application/json")) {
           const data = await res.json();
           setUser(data.user);
+          return data.user;
         } else {
           console.warn("Auth check: non-JSON response from server");
         }
@@ -221,12 +253,15 @@ export default function App() {
     } catch (e) {
       console.warn("Failed to load user profile", e);
     }
+    return null;
   };
 
-  const syncDatabase = async (silent = false) => {
+  const syncDatabase = async (silent = false, overrideToken?: string) => {
+    const activeToken = overrideToken || token;
+    if (!activeToken) return;
     if (!silent) setLoading(true);
     try {
-      const headerAuth = { "Authorization": `Bearer ${token}` };
+      const headerAuth = { "Authorization": `Bearer ${activeToken}` };
 
       const [resSys, resPlants, resProps] = await Promise.all([
         retryFetch("/api/systems", { headers: headerAuth }),
@@ -277,6 +312,8 @@ export default function App() {
   // Auth Operations
   const handleGoogleLogin = async () => {
     setAuthError("");
+    setIsInitialLoading(true);
+    setInitialLoadingMessage("Googleアカウントと接続しています...");
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
@@ -300,11 +337,14 @@ export default function App() {
         const cleanTok = String(data.token || "").replace(/[^\x21-\x7E]/g, "");
         localStorage.setItem("hydro_token", cleanTok);
         setToken(cleanTok);
-        setUser(data.user);
+        // ここから全栽培データのロードを開始する（loadUserDataAndSync がロード完了時に setIsInitialLoading(false) にする）
+        await loadUserDataAndSync(cleanTok, data.user, true);
       } else {
         setAuthError(data.error || "Google認証後に予期せぬエラーが発生しました");
+        setIsInitialLoading(false);
       }
     } catch (err: any) {
+      setIsInitialLoading(false);
       if (err.code !== "auth/cancelled-popup-request" && err.code !== "auth/popup-closed-by-user") {
         console.error("Google Auth error:", err);
       }
@@ -783,6 +823,11 @@ export default function App() {
     localStorage.setItem("hydro_location", loc);
     setUserLocation(loc);
   };
+
+  // Return early with custom loader if initial sync in progress
+  if (isInitialLoading) {
+    return <TanelogLoader message={initialLoadingMessage} />;
+  }
 
   // Return Sign-in Page if no user is validated
   if (!user) {
