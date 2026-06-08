@@ -896,7 +896,7 @@ export default function App() {
           </div>
           <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">たねログ</h2>
           <p className="text-slate-500 text-xs">
-            ベランダ家庭菜園、お庭や畑、室内水耕栽培まで対応。<br/>日々の栽培状況を記録し、お世話スケジュールを整理・管理できます。
+            ベランダ家庭菜園、お庭用のプランターや、室内水耕用プランターまで対応。<br/>日々の栽培状況を記録し、お世話スケジュールを整理・管理できます。
           </p>
         </div>
 

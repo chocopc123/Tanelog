@@ -47,9 +47,9 @@
     {
       "id": "sys-3",
       "userId": "user-1",
-      "name": "お庭の自家菜園スペース (露地畑)",
+      "name": "お庭の自家菜園スペース (屋外プランター)",
       "type": "Backyard_Field",
-      "description": "土壌改良を施し、腐葉土と完熟堆肥を混ぜて作った本格的なお庭の小さな耕地。",
+      "description": "土壌改良を施し、腐葉土と完熟堆肥を混ぜて作った本格的なお庭向けの特大プランター。",
       "createdAt": "2026-06-08T05:33:38.104Z",
       "updatedAt": "2026-06-08T05:33:38.104Z"
     }
@@ -109,9 +109,10 @@
       "sowingDate": "2026-05-02",
       "expectedHarvestDate": "2026-07-25",
       "createdAt": "2026-06-08T05:33:38.104Z",
-      "updatedAt": "2026-06-08T05:33:38.104Z",
+      "updatedAt": "2026-06-08T09:44:11.929Z",
       "fertilizerBrand": "マイガーデンベジフル (野菜用固形化成肥料)",
-      "fertilizerAmountMl": 10
+      "fertilizerAmountMl": 10,
+      "archived": false
     },
     {
       "id": "plant-5",
@@ -119,14 +120,15 @@
       "userId": "user-1",
       "name": "水耕ミニパクチー",
       "variety": "サワディパクチー (室内水耕)",
-      "stage": "seedling",
+      "stage": "finished",
       "sowingDate": "2026-05-25",
       "expectedHarvestDate": "2026-07-05",
       "createdAt": "2026-06-08T05:33:38.104Z",
-      "updatedAt": "2026-06-08T05:33:38.104Z",
+      "updatedAt": "2026-06-08T09:21:56.170Z",
       "fertilizerBrand": "ハイポニカ液体肥料 (A液+B液)",
       "fertilizerAmountMl": 2,
-      "fertilizerDilutionRate": 500
+      "fertilizerDilutionRate": 500,
+      "archived": true
     }
   ],
   "systemMembers": [
@@ -245,6 +247,33 @@
       "waterTemp": 22.4,
       "note": "第2本葉が展開中です。パクチー独特の香りのする小さな葉が見え始めました。早く育つのが楽しみです。",
       "loggedAt": "2026-06-07T12:00:00.104Z"
+    },
+    {
+      "id": "log-1780911019883",
+      "plantId": "plant-5",
+      "postedBy": "user-1",
+      "ph": null,
+      "ec": null,
+      "waterTemp": null,
+      "note": "",
+      "loggedAt": "2026-06-08T09:30:19.883Z",
+      "watered": true,
+      "appliedFertilizer": false
+    },
+    {
+      "id": "log-1780911024011",
+      "plantId": "plant-5",
+      "postedBy": "user-1",
+      "ph": null,
+      "ec": null,
+      "waterTemp": null,
+      "note": "",
+      "loggedAt": "2026-06-08T09:30:24.011Z",
+      "watered": true,
+      "appliedFertilizer": true,
+      "fertilizerBrand": "ハイポニカ液体肥料 (A液+B液)",
+      "fertilizerAmountMl": 2,
+      "fertilizerDilutionRate": 500
     }
   ],
   "plantPhotos": [
@@ -265,7 +294,7 @@
       "plantId": "plant-1",
       "userId": "user-1",
       "type": "nutrient",
-      "proposedDate": "2026-06-09",
+      "proposedDate": "2026-06-08",
       "note": "サラダレタス用の追加水耕液肥（ハイポニカ 500倍希釈 1.5L）。前回の施肥から7日経過するため推奨します。",
       "status": "approved",
       "createdAt": "2026-06-08T05:33:38.104Z"
@@ -309,6 +338,26 @@
       "note": "【pH・EC計測】パクチーは若苗期のため、pH5.5〜6.5、EC1.0〜1.2程度を保ち、急激な溶液濃度の変化を避けてください。",
       "status": "approved",
       "createdAt": "2026-06-08T05:33:38.104Z"
+    },
+    {
+      "id": "prop-ai-1780912336590-0",
+      "plantId": "plant-1",
+      "userId": "user-1",
+      "type": "ph_check",
+      "proposedDate": "2026-06-09",
+      "note": "【AI推奨】長野県長野市の気候下では、植物の急激な吸水によりpH変動が早まる恐れがあります。pHを5.8〜6.2にキープするため、試験紙またはメーターによる健康測定を推奨します。",
+      "status": "approved",
+      "createdAt": "2026-06-08T09:52:16.590Z"
+    },
+    {
+      "id": "prop-ai-1780912336590-1",
+      "plantId": "plant-1",
+      "userId": "user-1",
+      "type": "nutrient",
+      "proposedDate": "2026-06-15",
+      "note": "【液肥配合プラン】サラダフリルレタスの成長期にあわせて液肥補給を推奨します。ハイポニカ液体肥料を500倍希釈 (水2Lに希釈液各A剤・B剤を4mlずつ) にて水槽を満たしてください。",
+      "status": "approved",
+      "createdAt": "2026-06-08T09:52:16.590Z"
     }
   ],
   "weatherAdviceCache": {

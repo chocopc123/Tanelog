@@ -855,7 +855,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                         <p className="text-[11px] text-slate-500 leading-relaxed font-sans">
                           {sys.suspended 
                             ? "現在、このプランターは一時休止中です。再開するとリストに再表示され、再び植物を追加できます。" 
-                            : "プランターを一時休止すると、現在栽培中の植物はすべて『栽培完了・アーカイブ』へ安全に移動され、プランター全体が非表示状態になります（データは削除されません）。"}
+                            : "プランターを一時休止すると、現在栽培中の植物はすべて『栽培完了』へ安全に移動され、プランター全体が非表示状態になります（データは削除されません）。"}
                         </p>
                       </div>
                       <button 
@@ -873,10 +873,10 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                           } else {
                             requestConfirm(
                               "プランターの一時休止",
-                              `本当にこのプランター「${sys.name}」を一時休止しますか？現在栽培中の植物はすべて『栽培完了・アーカイブ』へ安全に移動されます（データは削除されません）。`,
+                              `本当にこのプランター「${sys.name}」を一時休止しますか？現在栽培中の植物はすべて『栽培完了』へ安全に移動されます（データは削除されません）。`,
                               () => {
                                 onUpdateSystem(sys.id, { suspended: true });
-                                triggerToast(`「${sys.name}」を休止し、すべての植物をアーカイブ化しました。`);
+                                triggerToast(`「${sys.name}」を休止し、すべての植物を栽培完了にしました。`);
                               }
                             );
                           }
@@ -936,7 +936,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
               <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                 <Sprout className="w-5 h-5 text-emerald-600" /> プランターと植物プロファイル
               </h2>
-              <p className="text-slate-500 text-xs">プランター・菜園畑・室内水耕まで、栽培環境と植物のプロファイルを一元管理できます。</p>
+              <p className="text-slate-500 text-xs">色々なタイプのプランターや室内水耕まで、栽培環境と植物のプロファイルを一元管理できます。</p>
             </div>
             <div className="flex gap-2">
               <button 
@@ -984,7 +984,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                     className="w-full px-3 py-2 text-base md:text-xs bg-white border border-slate-200 rounded-xl text-slate-700 font-sans"
                   >
                     <option value="Soil_Planter">ベランダプランター栽培 (土耕)</option>
-                    <option value="Backyard_Field">お庭の菜園・市民農園 (露地畑)</option>
+                    <option value="Backyard_Field">お庭の菜園プランター・地面プランター</option>
                     <option value="DWC">水耕: DWC (深水エアー循環式)</option>
                     <option value="NFT">水耕: NFT (薄膜傾斜流下式)</option>
                     <option value="Kratky">水耕: Kratky (ノンエアー密閉ボトル)</option>
@@ -1129,9 +1129,9 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                   <div className="mx-auto w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center text-amber-600/80 mb-4">
                     <Sprout className="w-8 h-8" />
                   </div>
-                  <h4 className="font-extrabold text-slate-800 text-base mb-2">これまでに栽培完了（アーカイブ）した植物はありません</h4>
+                  <h4 className="font-extrabold text-slate-800 text-base mb-2">これまでに栽培完了した植物はありません</h4>
                   <p className="text-xs text-slate-500 leading-relaxed max-w-md mx-auto">
-                    栽培を終了した植物を「栽培完了（アーカイブ）」に設定すると、これまでの成長ログや写真などの栽培記録をここに保存し、一覧として振り返ることができます。
+                    栽培を終了した植物を「栽培完了」に設定すると、これまでの成長ログや写真などの栽培記録をここに保存し、一覧として振り返ることができます。
                   </p>
                 </div>
               );
@@ -1166,7 +1166,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                               <div className="space-y-1 text-left">
                                 <div className="flex items-center gap-2">
                                   <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${viewArchived ? 'bg-amber-50 text-amber-700 border-amber-200/60' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
-                                    {sys.type === 'DWC' ? 'DWC水耕' : sys.type === 'NFT' ? 'NFT流下' : sys.type === 'Kratky' ? 'Kratky静置' : sys.type === 'Soil_Planter' ? '土耕プランター' : sys.type === 'Backyard_Field' ? '露地畑/家庭菜園' : 'その他環境'}
+                                    {sys.type === 'DWC' ? '水耕プランター (DWC)' : sys.type === 'NFT' ? '水耕プランター (NFT)' : sys.type === 'Kratky' ? '静置水耕プランター' : sys.type === 'Soil_Planter' ? '土耕用プランター' : sys.type === 'Backyard_Field' ? '屋外設置プランター' : 'その他プランター'}
                                   </span>
                                   <h3 className={`font-extrabold text-base ${viewArchived ? 'text-slate-700' : 'text-slate-850'}`}>{sys.name}</h3>
                                 </div>
@@ -1217,7 +1217,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                               ) : (
                                 sysPlants.map((p) => {
                                   if (viewArchived) {
-                                    // 栽培完了（アーカイブ）用のノスタルジック・温かみのあるアルバム調カード
+                                    // 栽培完了用のノスタルジック・温かみのあるアルバム調カード
                                     const latestLogStr = p.latestLogAt ? p.latestLogAt.split("T")[0] : null;
                                     const calcTotalDays = (startStr: string, endStr: string | null) => {
                                       try {
@@ -1506,7 +1506,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                                     );
                                   }
 
-                                  // 非アーカイブ時の休止植物カードはシンプルに表示
+                                  // 栽培中ではない休止植物カードはシンプルに表示
                                   return (
                                     <div 
                                       key={p.id}
@@ -2668,7 +2668,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                         onClick={async () => {
                           const toArchived = !selectedPlant.archived;
                           requestConfirm(
-                            toArchived ? "植物のアーカイブ" : "アーカイブから復元",
+                            toArchived ? "植物を栽培完了にする" : "栽培中へ復元する",
                             toArchived 
                               ? "この植物を栽培完了として保存しますか？\n栽培リストから非表示になり、栽培完了履歴として閲覧・管理できるようになります。" 
                               : "この植物を通常栽培エリアへ復元しますか？\n再びアクティブな栽培リストへ戻り、日々の潅水や測定ログ管理を再開できます。",

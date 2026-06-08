@@ -7,6 +7,7 @@ import {
   Settings, Check, X, ShieldAlert, Users, CloudRain, CheckCircle, Sprout, Loader2,
   CalendarClock, Sparkles, Timer, ChevronRight, RefreshCw
 } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 
 interface DashboardViewProps {
   user: User;
@@ -53,10 +54,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const [toastMsg, setToastMsg] = useState("");
   const [expandedReasonId, setExpandedReasonId] = useState<string | null>(null);
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Record<string, boolean>>({});
 
   const triggerLocalToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(""), 4000);
+  };
+
+  const toggleTaskExpand = (taskId: string) => {
+    setExpandedTaskIds(prev => ({
+      ...prev,
+      [taskId]: !prev[taskId]
+    }));
   };
 
   const activePlantIds = plants.filter(p => !p.archived && !systems.find(sys => sys.id === p.systemId)?.suspended).map(p => p.id);
@@ -158,40 +167,92 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               本日予定されているお世話はこちらで完了、またはありません
             </div>
           ) : (
-            <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-              {approvedToday.map((item, idx) => (
-                <div key={item.id || idx} className="p-3 bg-emerald-50/20 hover:bg-emerald-50/50 border border-emerald-100/40 rounded-xl text-xs flex flex-row items-center justify-between gap-3 transition-colors">
-                  <div className="space-y-0.5 flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-bold text-emerald-850 text-[9.5px] bg-emerald-100/40 px-1.5 py-0.2 rounded">
-                        {item.type === 'nutrient' ? '🧪 施肥' : item.type === 'water_change' ? '💧 水換' : item.type === 'ph_check' ? '📊 pH' : item.type === 'watering' ? '🚿 水やり' : item.type === 'pruning' ? '✂️ 剪定' : '📋 お世話'}
-                      </span>
-                      <span className="font-mono text-[9px] text-slate-400 bg-white px-1.5 py-0.2 rounded border border-slate-100 truncate max-w-[120px]">
-                        {item.plantName}
-                      </span>
-                    </div>
-                    <p className="text-slate-750 font-bold truncate">{item.note}</p>
-                  </div>
-                  {onCompleteProposalTask && (
-                    <button
-                      type="button"
-                      onClick={async () => {
-                        try {
-                          await onCompleteProposalTask(item);
-                          triggerLocalToast(`「${item.note.substring(0, 10)}...」を日記に自動記録しました。`);
-                        } catch (e) {
-                          console.error(e);
-                          triggerLocalToast("エラーが発生しました。");
-                        }
-                      }}
-                      className="px-3 py-1.5 text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all rounded-lg shrink-0 flex items-center gap-0.5 cursor-pointer shadow-3xs"
+            <div className="space-y-2">
+              {approvedToday.map((item, idx) => {
+                const itemId = item.id || `task-${idx}`;
+                const isExpanded = !!expandedTaskIds[itemId];
+
+                // noteの最初の句点、改行、または全角半角カッコの手前を簡潔な見出しタイトルとして切り出す
+                const titleMatch = item.note.match(/^[^。\n（(]+/);
+                const displayTitle = titleMatch ? titleMatch[0].trim() : item.note;
+
+                return (
+                  <div 
+                    key={itemId} 
+                    id={`task-accordion-${itemId}`}
+                    className="bg-white border border-slate-100/80 rounded-xl overflow-hidden transition-shadow hover:shadow-2xs"
+                  >
+                    {/* Accordion Header */}
+                    <div 
+                      onClick={() => toggleTaskExpand(itemId)}
+                      className="p-3 bg-emerald-50/10 hover:bg-emerald-50/30 flex items-center justify-between gap-3 select-none cursor-pointer"
                     >
-                      <Check className="w-3 h-3" />
-                      完了
-                    </button>
-                  )}
-                </div>
-              ))}
+                      <div className="space-y-1 flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-bold text-emerald-850 text-[9px] bg-emerald-100/40 px-1.5 py-0.2 rounded">
+                            {item.type === 'nutrient' ? '🧪 施肥' : item.type === 'water_change' ? '💧 水換' : item.type === 'ph_check' ? '📊 pH' : item.type === 'watering' ? '🚿 水やり' : item.type === 'pruning' ? '✂️ 剪定' : '📋 お世話'}
+                          </span>
+                          <span className="font-mono text-[9px] text-slate-400 bg-white px-1.5 py-0.2 rounded border border-slate-100 truncate max-w-[120px]">
+                            {item.plantName}
+                          </span>
+                        </div>
+                        <p className="text-slate-700 font-bold text-xs truncate">
+                          {displayTitle}
+                        </p>
+                      </div>
+                      
+                      <div className="flex items-center gap-1.5 text-slate-400 shrink-0">
+                        <span className="text-[9px] font-bold text-slate-400 hidden sm:inline">
+                          {isExpanded ? "閉じる" : "詳細を開く"}
+                        </span>
+                        <ChevronRight className={`w-3.5 h-3.5 transition-transform duration-250 ${isExpanded ? "rotate-90 text-emerald-600" : ""}`} />
+                      </div>
+                    </div>
+
+                    {/* Accordion Body with framer-motion smooth animation */}
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2, ease: "easeInOut" }}
+                          className="overflow-hidden"
+                        >
+                          <div className="p-3 bg-slate-50/50 border-t border-slate-100/40 text-xs text-slate-650 space-y-3">
+                            <div className="space-y-1 font-semibold leading-relaxed">
+                              <span className="text-[9px] text-slate-400 font-extrabold uppercase tracking-wider block">お世話メモ・アドバイス詳細</span>
+                              <p className="text-slate-700 bg-white p-2.5 rounded-lg border border-slate-100 font-bold whitespace-pre-wrap">{item.note}</p>
+                            </div>
+
+                            {onCompleteProposalTask && (
+                              <div className="flex justify-end pt-1">
+                                <button
+                                  type="button"
+                                  onClick={async (e) => {
+                                    e.stopPropagation();
+                                    try {
+                                      await onCompleteProposalTask(item);
+                                      triggerLocalToast(`「${item.note.substring(0, 10)}...」をお世話ログに自動記録しました。`);
+                                    } catch (e) {
+                                      console.error(e);
+                                      triggerLocalToast("エラーが発生しました。");
+                                    }
+                                  }}
+                                  className="px-3.5 py-1.5 text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 active:scale-95 transition-all rounded-lg flex items-center gap-1 cursor-pointer shadow-3xs"
+                                >
+                                  <Check className="w-3 h-3" />
+                                  完了にする
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -241,7 +302,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <div className="p-4.5 flex-1">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100/60 font-sans">
-                        {sys.type === 'DWC' ? '水耕 DWC' : sys.type === 'NFT' ? '水耕 NFT' : sys.type === 'Kratky' ? 'Kratky 静置' : sys.type === 'Soil_Planter' ? '土耕プランター' : sys.type === 'Backyard_Field' ? '畑・庭栽培' : '栽培環境'}
+                        {sys.type === 'DWC' ? '水耕プランター (DWC)' : sys.type === 'NFT' ? '水耕プランター (NFT)' : sys.type === 'Kratky' ? '静置水耕プランター' : sys.type === 'Soil_Planter' ? '土耕用プランター' : sys.type === 'Backyard_Field' ? '屋外設置プランター' : '栽培用プランター'}
                       </span>
                       <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded">稼働中</span>
                     </div>
