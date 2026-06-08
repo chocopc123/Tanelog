@@ -212,6 +212,37 @@ function createSeedData(): DBStructure {
     fertilizerDilutionRate: 500
   };
 
+  const plant4: Plant = {
+    id: "plant-4",
+    systemId: "sys-2",
+    userId: "user-1",
+    name: "やわらか京みどりピーマン",
+    variety: "京みどり (プランター土耕)",
+    stage: "vegetative",
+    sowingDate: "2026-05-02",
+    expectedHarvestDate: "2026-07-25",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    fertilizerBrand: "マイガーデンベジフル (野菜用固形化成肥料)",
+    fertilizerAmountMl: 10
+  };
+
+  const plant5: Plant = {
+    id: "plant-5",
+    systemId: "sys-1",
+    userId: "user-1",
+    name: "水耕ミニパクチー",
+    variety: "サワディパクチー (室内水耕)",
+    stage: "seedling",
+    sowingDate: "2026-05-25",
+    expectedHarvestDate: "2026-07-05",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    fertilizerBrand: "ハイポニカ液体肥料 (A液+B液)",
+    fertilizerAmountMl: 2,
+    fertilizerDilutionRate: 500
+  };
+
   // Planter Collaboration members
   const member1: SystemMember = {
     id: "member-1",
@@ -319,6 +350,28 @@ function createSeedData(): DBStructure {
     fertilizerAmountMl: 15
   };
 
+  const log6: GrowLog = {
+    id: "log-6",
+    plantId: "plant-4",
+    postedBy: "user-1",
+    ph: null,
+    ec: null,
+    waterTemp: null,
+    note: "トマトの隣のプランターに植えているピーマン。1番花のつぼみが見え始めました。アブラムシの付着がないか念入りに確認しました。",
+    loggedAt: new Date(Date.now() - 24 * 3600_000).toISOString()
+  };
+
+  const log7: GrowLog = {
+    id: "log-7",
+    plantId: "plant-5",
+    postedBy: "user-1",
+    ph: 5.9,
+    ec: 1.1,
+    waterTemp: 22.4,
+    note: "第2本葉が展開中です。パクチー独特の香りのする小さな葉が見え始めました。早く育つのが楽しみです。",
+    loggedAt: new Date(Date.now() - 18 * 3600_000).toISOString()
+  };
+
   // Schedule Proposals for multiple types of fields: soil irrigation versus hydro pH
   const prop1: ScheduleProposal = {
     id: "prop-1",
@@ -348,7 +401,29 @@ function createSeedData(): DBStructure {
     userId: "user-1",
     type: "pruning",
     proposedDate: new Date().toISOString().split("T")[0],
-    note: "【脇芽摘み・摘心】バジルがよく分枝しています。先端の茎を摘心して、脇芽の成長および通風を促し、害虫予防を図ることをお勧めします。",
+    note: "【脇芽摘み・摘心】バジルがよく分枝しています。先端の茎を摘心して、脇芽 of 葉の成長および通風を促し、害虫予防を図ることをお勧めします。",
+    status: "approved",
+    createdAt: new Date().toISOString()
+  };
+
+  const prop4: ScheduleProposal = {
+    id: "prop-4",
+    plantId: "plant-4",
+    userId: "user-1",
+    type: "watering",
+    proposedDate: new Date(Date.now() + 3 * 24 * 3600_000).toISOString().split("T")[0],
+    note: "【ピーマン水やり】土が乾きやすくなっています。トマト同様、朝方の涼しい時間帯にたっぷりと水やりを行ってください。",
+    status: "approved",
+    createdAt: new Date().toISOString()
+  };
+
+  const prop5: ScheduleProposal = {
+    id: "prop-5",
+    plantId: "plant-5",
+    userId: "user-1",
+    type: "ph_check",
+    proposedDate: new Date(Date.now() + 4 * 24 * 3600_000).toISOString().split("T")[0],
+    note: "【pH・EC計測】パクチーは若苗期のため、pH5.5〜6.5、EC1.0〜1.2程度を保ち、急激な溶液濃度の変化を避けてください。",
     status: "approved",
     createdAt: new Date().toISOString()
   };
@@ -360,19 +435,20 @@ function createSeedData(): DBStructure {
     growLogId: "log-1",
     postedBy: "user-1",
     storageKey: "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='400' height='300' viewBox='0 0 400 300'><rect width='400' height='300' fill='%23e6f4ea'/><text x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='20' fill='%23137333'>レタス 苗期</text></svg>",
-    createdAt: new Date(Date.now() - 48 * 3600_000).toISOString()
+    caption: "レタスの状態",
+    takenAt: new Date(Date.now() - 48 * 3600_000).toISOString()
   };
 
   return {
     users: [defaultUser, coopUser],
     systems: [sys1, sys2, sys3],
-    plants: [plant1, plant2, plant3],
+    plants: [plant1, plant2, plant3, plant4, plant5],
     systemMembers: [member1, member2, member3, member4, member5],
-    growLogs: [log1, log2, log3, log4, log5],
+    growLogs: [log1, log2, log3, log4, log5, log6, log7],
     plantPhotos: [seedPhoto1],
     nutrientLogs: [],
     chatMessages: [],
-    scheduleProposals: [prop1, prop2, prop3],
+    scheduleProposals: [prop1, prop2, prop3, prop4, prop5],
     weatherAdviceCache: {},
     harvestPredictions: [],
     lastHarvestCalculationAt: ""
@@ -447,13 +523,33 @@ app.post("/api/auth/login", async (req, res) => {
   }
   
   const currentDb = readDB();
-  let user = currentDb.users.find(u => u.email.toLowerCase() === email.toLowerCase());
+  const normalizedEmail = email.toLowerCase();
+  
+  if (normalizedEmail === "demo@example.com") {
+    let demoUser = currentDb.users.find(u => u.id === "user-1");
+    if (!demoUser) {
+      demoUser = {
+        id: "user-1",
+        email: "demo@example.com",
+        name: "デモユーザー",
+        createdAt: new Date().toISOString()
+      };
+      currentDb.users.push(demoUser);
+    } else {
+      demoUser.email = "demo@example.com";
+      demoUser.name = "デモユーザー";
+    }
+    writeDB(currentDb);
+    return res.json({ user: demoUser, token: "user-1" });
+  }
+  
+  let user = currentDb.users.find(u => u.email.toLowerCase() === normalizedEmail);
   
   if (!user) {
-    const parts = email.split("@");
+    const parts = normalizedEmail.split("@");
     user = {
       id: "user-" + Date.now(),
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       name: parts[0] || "栽培仲間",
       createdAt: new Date().toISOString()
     };
@@ -613,7 +709,7 @@ app.get("/api/plants/harvest-predictions", async (req, res) => {
         const plantsData = activePlants.map(p => {
           const logs = currentDb.growLogs
             .filter(l => l.plantId === p.id)
-            .sort((a, b) => new Date(b.date || l.loggedAt).getTime() - new Date(a.date || a.loggedAt).getTime())
+            .sort((a, b) => new Date(b.loggedAt).getTime() - new Date(a.loggedAt).getTime())
             .slice(0, 3);
 
           return {
@@ -621,9 +717,9 @@ app.get("/api/plants/harvest-predictions", async (req, res) => {
             name: p.name,
             species: p.variety || p.name,
             stage: p.stage,
-            plantedAt: p.sowingDate || p.plantedAt,
-            targetHarvestDays: p.targetHarvestDays || 60,
-            growLogs: logs.map(l => ({ date: l.loggedAt || l.date, note: l.note }))
+            plantedAt: p.sowingDate,
+            targetHarvestDays: 60,
+            growLogs: logs.map(l => ({ date: l.loggedAt, note: l.note }))
           };
         });
 
@@ -1642,6 +1738,36 @@ app.get("/api/proposals", (req, res) => {
   );
 
   res.json(proposals);
+});
+
+app.post("/api/proposals", (req, res) => {
+  const user = getUserContext(req);
+  const { plantId, type, proposedDate, note } = req.body;
+  
+  if (!plantId || !type || !proposedDate) {
+    return res.status(400).json({ error: "plantId, type, and proposedDate are required" });
+  }
+
+  const currentDb = readDB();
+  const plant = currentDb.plants.find(p => p.id === plantId);
+  if (!plant) {
+    return res.status(404).json({ error: "Plant not found" });
+  }
+
+  const newProposal: ScheduleProposal = {
+    id: "prop-" + Date.now() + "-" + Math.random().toString(36).substr(2, 5),
+    plantId,
+    userId: user.id,
+    type,
+    proposedDate,
+    note: note || "",
+    status: "approved", // Manually created ones are set to active/approved directly
+    createdAt: new Date().toISOString()
+  };
+
+  currentDb.scheduleProposals.push(newProposal);
+  writeDB(currentDb);
+  res.status(211).json(newProposal);
 });
 
 app.put("/api/proposals/:id", (req, res) => {

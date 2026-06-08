@@ -44,6 +44,7 @@ export default function App() {
   const [token, setToken] = useState<string | null>(getCleanToken());
   const [user, setUser] = useState<User | null>(null);
   const [authError, setAuthError] = useState("");
+  const [emailInput, setEmailInput] = useState("");
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [initialLoadingMessage, setInitialLoadingMessage] = useState("たねログを準備しています...");
 
@@ -357,6 +358,39 @@ export default function App() {
       } else {
         setAuthError(`Google認証への接続中にエラーが発生しました。エラーコード: ${err.code || "unknown"} (${err.message || err})`);
       }
+    }
+  };
+
+  const handleEmailLogin = async (emailToSubmit: string) => {
+    const trimmed = (emailToSubmit || "").trim();
+    if (!trimmed || !trimmed.includes("@")) {
+      setAuthError("有効なメールアドレスを入力してください。");
+      return;
+    }
+    setAuthError("");
+    setIsInitialLoading(true);
+    setInitialLoadingMessage("アカウントにログインしています...");
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: trimmed })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        const cleanTok = String(data.token || "").replace(/[^\x21-\x7E]/g, "");
+        localStorage.setItem("hydro_token", cleanTok);
+        setToken(cleanTok);
+        await loadUserDataAndSync(cleanTok, data.user, true);
+      } else {
+        setAuthError(data.error || "ログインに失敗しました。");
+        setIsInitialLoading(false);
+      }
+    } catch (err: any) {
+      setIsInitialLoading(false);
+      console.error("Email login error:", err);
+      setAuthError(`ログイン接続中にエラーが発生しました: ${err.message || err}`);
     }
   };
 
@@ -716,6 +750,29 @@ export default function App() {
     }
   };
 
+  const handleCreateProposal = async (plantId: string, type: string, proposedDate: string, note: string) => {
+    try {
+      const res = await fetch("/api/proposals", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({ plantId, type, proposedDate, note })
+      });
+      if (res.ok) {
+        await syncDatabase();
+      } else {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || "スケジュールの新規作成に失敗しました。");
+      }
+    } catch (e: any) {
+      console.error(e);
+      alert(e.message || "作成中にエラーが発生しました。");
+      throw e;
+    }
+  };
+
   const handleCompleteProposalTask = async (task: any) => {
     try {
       // 1. Update status to completed
@@ -839,11 +896,11 @@ export default function App() {
           </div>
           <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">たねログ</h2>
           <p className="text-slate-500 text-xs">
-            ベランダ家庭菜園、お庭の露地、室内水耕まで対応。<br/>栽培記録、AIによるスケジュール提案。
+            ベランダ家庭菜園、お庭や畑、室内水耕栽培まで対応。<br/>日々の栽培状況を記録し、お世話スケジュールを整理・管理できます。
           </p>
         </div>
 
-        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-sm">
+        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
           <div className="bg-white py-8 px-6 shadow-sm rounded-2xl border border-slate-100 space-y-6 text-center">
 
             {authError && (
@@ -853,23 +910,44 @@ export default function App() {
               </div>
             )}
 
-            <button 
-              type="button"
-              onClick={handleGoogleLogin}
-              className="w-full py-3.5 px-4 font-bold text-sm bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-xs hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer text-center flex items-center justify-center gap-3 border border-transparent"
-            >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.9h6.6c-.28 1.5-1.12 2.76-2.38 3.6v3h3.84c2.25-2.07 3.68-5.12 3.68-8.43z"/>
-                <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.84-3c-1.08.72-2.45 1.16-4.09 1.16-3.15 0-5.81-2.13-6.76-5.01H1.28v3.1c2 3.97 6.11 6.66 10.72 6.66z"/>
-                <path fill="#FBBC05" d="M5.24 14.24a7.15 7.15 0 0 1 0-4.48V6.66H1.28a11.96 11.96 0 0 0 0 10.68l3.96-3.1z"/>
-                <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.39 0 3.28 2.69 1.28 6.66L5.24 9.76c.95-2.88 3.61-5.01 6.76-5.01z"/>
-              </svg>
-              Googleアカウントでサインイン
-            </button>
+            <div className="space-y-4">
+              <button 
+                type="button"
+                onClick={handleGoogleLogin}
+                className="w-full py-3.5 px-4 font-bold text-sm bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-xs hover:shadow-md hover:scale-[1.01] active:scale-[0.99] transition-all cursor-pointer text-center flex items-center justify-center gap-3 border border-transparent"
+              >
+                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v3.9h6.6c-.28 1.5-1.12 2.76-2.38 3.6v3h3.84c2.25-2.07 3.68-5.12 3.68-8.43z"/>
+                  <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.84-3c-1.08.72-2.45 1.16-4.09 1.16-3.15 0-5.81-2.13-6.76-5.01H1.28v3.1c2 3.97 6.11 6.66 10.72 6.66z"/>
+                  <path fill="#FBBC05" d="M5.24 14.24a7.15 7.15 0 0 1 0-4.48V6.66H1.28a11.96 11.96 0 0 0 0 10.68l3.96-3.1z"/>
+                  <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.39 0 3.28 2.69 1.28 6.66L5.24 9.76c.95-2.88 3.61-5.01 6.76-5.01z"/>
+                </svg>
+                Googleアカウントでサインイン
+              </button>
+              
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                本サービスは安全かつ迅速なログインを実現するため、Google認証を採用しています。
+              </p>
+            </div>
 
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              本サービスは安全かつ迅速なログインを実現するため、Google認証のみを採用しています。
-            </p>
+            <div className="relative flex items-center justify-center py-2">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-slate-100"></div>
+              </div>
+              <span className="relative px-3 bg-white text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">
+                または
+              </span>
+            </div>
+
+            <div className="pt-1 select-none space-y-2">
+              <button
+                type="button"
+                onClick={() => handleEmailLogin("demo@example.com")}
+                className="w-full py-2.5 px-3 border border-dashed border-emerald-200 hover:border-emerald-300 bg-emerald-50/20 hover:bg-emerald-50/40 text-emerald-700 rounded-xl text-xs font-extrabold cursor-pointer transition-all text-center flex items-center justify-center gap-1.5 hover:scale-[1.01] active:scale-[0.99]"
+              >
+                🌱 デモ栽培を試す (ゲストお試しログイン)
+              </button>
+            </div>
 
           </div>
         </div>
@@ -1046,6 +1124,7 @@ export default function App() {
             key={calendarKey}
             proposals={proposals}
             onApproveProposal={handleApproveProposal}
+            onCreateProposal={handleCreateProposal}
             userToken={user.id}
             plants={plants}
             systems={systems}
