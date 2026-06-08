@@ -70,6 +70,8 @@ let memoryDB: DBStructure = {
 };
 
 const DB_FILE_PATH = path.join(process.cwd(), "db.json");
+const DB_BAK_PATH = path.join(process.cwd(), "db.json.bak");
+const DB_CORRUPTED_PATH = path.join(process.cwd(), "db.json.corrupted");
 
 function readDB(): DBStructure {
   // ミュータブル参照による意図しないメモリ直接書き換えとお知らせ同期バグをガードするため、
@@ -86,12 +88,31 @@ function writeDB(data: DBStructure) {
   // memoryDB自身を新しい状態にアップデートします。
   memoryDB = JSON.parse(JSON.stringify(data));
 
-  // 1. ローカルの db.json への同期書き込み
+  const tmpPath = DB_FILE_PATH + ".tmp";
   try {
-    fs.writeFileSync(DB_FILE_PATH, JSON.stringify(memoryDB, null, 2), "utf-8");
-    console.log("栽培データをローカル db.json に安全に永続化保存しました。");
+    // 1. 一時ファイルへ書き込み (アトミック書き込みのベース)
+    fs.writeFileSync(tmpPath, JSON.stringify(memoryDB, null, 2), "utf-8");
+    
+    // 2. 既存の db.json が存在かつ正常であれば、念のためにバックアップにコピー
+    if (fs.existsSync(DB_FILE_PATH)) {
+      try {
+        fs.copyFileSync(DB_FILE_PATH, DB_BAK_PATH);
+      } catch (bakErr) {
+        console.warn("バックアップ作成に失敗しました (保存処理は続行します):", bakErr);
+      }
+    }
+
+    // 3. 一時ファイルから本番ファイルへアトミックにリネーム
+    fs.renameSync(tmpPath, DB_FILE_PATH);
+    console.log("栽培データをローカル db.json に安全（アトミック）に永続化保存しました。");
   } catch (fsErr) {
     console.error("ローカル永続化ファイル db.json の保存に失敗しました:", fsErr);
+    // クリーンアップ
+    if (fs.existsSync(tmpPath)) {
+      try {
+        fs.unlinkSync(tmpPath);
+      } catch (_) {}
+    }
   }
 }
 
@@ -2041,22 +2062,59 @@ async function boot() {
   
   // A. まずはローカルに保存済みの db.json があるか確認してロードを試みる
   let hasLoadedLocal = false;
-  if (fs.existsSync(DB_FILE_PATH)) {
+
+  const tryLoadFile = async (filePath: string): Promise<boolean> => {
+    if (!fs.existsSync(filePath)) return false;
     try {
-      const fileData = await fs.promises.readFile(DB_FILE_PATH, "utf-8");
+      const fileData = await fs.promises.readFile(filePath, "utf-8");
       if (fileData.trim()) {
-        memoryDB = JSON.parse(fileData);
-        hasLoadedLocal = true;
-        console.log("ローカルの db.json から最新データを無事にロードしました！");
+        const parsed = JSON.parse(fileData);
+        // 最低限、users などの必要なキーが存在する妥当なDB構造であることを検証
+        if (parsed && typeof parsed === "object" && Array.isArray(parsed.users)) {
+          memoryDB = parsed;
+          return true;
+        }
       }
-    } catch (fsErr) {
-      console.error("ローカルの db.json のロード中にパースエラーが発生しました:", fsErr);
+    } catch (err) {
+      console.error(`ファイル ${filePath} のロード中にエラーが発生しました:`, err);
+    }
+    return false;
+  };
+
+  // 1. 本番の db.json 読み込みを試みる
+  if (fs.existsSync(DB_FILE_PATH)) {
+    hasLoadedLocal = await tryLoadFile(DB_FILE_PATH);
+    if (hasLoadedLocal) {
+      console.log("ローカルの db.json から最新データを無事にロードしました！");
+    } else {
+      console.warn("ローカルの db.json が破損または不完全である可能性があります。");
+      // 調査用に破損ファイルを退避
+      try {
+        fs.copyFileSync(DB_FILE_PATH, DB_CORRUPTED_PATH);
+        console.warn(`破損したファイルをバックアップしました: ${DB_CORRUPTED_PATH}`);
+      } catch (_) {}
     }
   }
 
-  // ローカルからロードできていなかった場合、初期シードデータをロードする
+  // 2. 本番がだめな場合、バックアップ db.json.bak からの復旧を試みる
+  if (!hasLoadedLocal && fs.existsSync(DB_BAK_PATH)) {
+    console.log("バックアップファイル db.json.bak からの復旧を試みます...");
+    hasLoadedLocal = await tryLoadFile(DB_BAK_PATH);
+    if (hasLoadedLocal) {
+      console.log("バックアップファイル db.json.bak から最新データを無事にロード・復旧しました！");
+      // 復旧したデータを db.json に再書き込み
+      try {
+        await fs.promises.writeFile(DB_FILE_PATH, JSON.stringify(memoryDB, null, 2), "utf-8");
+        console.log("復旧されたデータを db.json に再保存しました。");
+      } catch (writeErr) {
+        console.error("復旧データの db.json への再保存に失敗しました:", writeErr);
+      }
+    }
+  }
+
+  // ローカル（本番＆バックアップ）からロードできていなかった場合のみ、初期シードデータをロードする
   if (!hasLoadedLocal) {
-    console.log("ローカルデータが存在しないため、初期栽培デモシードデータを適用します。");
+    console.log("ローカルデータが存在しない、またはすべて破損しているため、初期栽培デモシードデータを適用します。");
     memoryDB = createSeedData();
     
     // シードデータを db.json に書き出して以降の安全なローカル永続化を保証する
