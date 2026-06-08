@@ -1064,6 +1064,7 @@ app.get("/api/plants", (req, res) => {
     // Check if user is owner or member based on systemId
     const membership = currentDb.systemMembers.find(m => m.systemId === p.systemId && m.userId === user.id);
     const isSysOwner = sys && sys.userId === user.id;
+    const photos = currentDb.plantPhotos.filter(ph => ph.plantId === p.id);
     return {
       ...p,
       systemName: sys ? sys.name : "不明なプランター",
@@ -1072,7 +1073,9 @@ app.get("/api/plants", (req, res) => {
       latestEc: latest ? latest.ec : null,
       latestWaterTemp: latest ? latest.waterTemp : null,
       latestLogAt: latest ? latest.loggedAt : null,
-      role: isSysOwner ? "owner" : (membership ? membership.role : "member")
+      role: isSysOwner ? "owner" : (membership ? membership.role : "member"),
+      logCount: logs.length,
+      photoCount: photos.length
     };
   });
   

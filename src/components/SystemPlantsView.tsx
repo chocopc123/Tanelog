@@ -1024,12 +1024,12 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
 
           {/* ADD PLANT FORM SLIDER */}
           {showAddPlant && (
-            <form onSubmit={handleCreatePlant} className="bg-slate-50 border border-slate-100 p-6 rounded-2xl space-y-4 max-w-xl">
-              <h3 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5">
+            <form onSubmit={handleCreatePlant} className="bg-slate-50 border border-slate-100 p-6 rounded-2xl space-y-4 max-w-xl text-left">
+              <h3 className="font-extrabold text-sm text-slate-800 flex items-center gap-1.5 justify-start">
                 <PlusCircle className="text-emerald-600 w-4.5 h-4.5" /> プラント栽培開始 (新規登録)
               </h3>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
                 <div>
                   <label className="block text-slate-500 text-xs font-bold mb-1 font-sans">植物名 / ニックネーム</label>
                   <input 
@@ -1069,7 +1069,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-slate-500 text-xs font-bold mb-1 font-sans">設置/種まき日 (sowing_date)</label>
+                  <label className="block text-slate-500 text-xs font-bold mb-1 font-sans">設置/種まき日</label>
                   <input 
                     type="date" 
                     value={newPlantSowing} 
@@ -1108,245 +1108,454 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
           )}
 
           {/* ACTIVE SYSTEMS WRAPPER LISTS */}
-          <div className="space-y-8">
-            {/* 稼働中のプランター */}
-            {systems.filter(s => !s.suspended).length > 0 && (
-              <div className="space-y-4">
-                <h3 className="text-xs font-bold text-slate-700 flex items-center gap-1.5 px-1 text-left">
-                  <span className="flex h-2 w-2 relative">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-50"></span>
-                  </span>
-                  稼働中のプランター ({systems.filter(s => !s.suspended).length})
-                </h3>
-                <div className="space-y-6">
-                  {systems.filter(s => !s.suspended).map((sys) => {
-                    const sysPlants = plants.filter(p => p.systemId === sys.id && (viewArchived ? !!p.archived : !p.archived));
+          {(() => {
+            const displayedActiveSystems = systems.filter(s => !s.suspended).filter(sys => {
+              if (viewArchived) {
+                return plants.some(p => p.systemId === sys.id && !!p.archived);
+              }
+              return true;
+            });
 
-                    return (
-                      <div key={sys.id} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4">
-                        <div className="flex justify-between items-start gap-4 flex-wrap">
-                          <div className="space-y-1 text-left">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-100">
-                                {sys.type === 'DWC' ? 'DWC水耕' : sys.type === 'NFT' ? 'NFT流下' : sys.type === 'Kratky' ? 'Kratky静置' : sys.type === 'Soil_Planter' ? '土耕プランター' : sys.type === 'Backyard_Field' ? '露地畑/家庭菜園' : 'その他環境'}
-                              </span>
-                              <h3 className="font-extrabold text-slate-850 text-base">{sys.name}</h3>
-                            </div>
-                            <p className="text-slate-500 text-xs leading-relaxed">{sys.description || "このプランターについてのメモ説明はありません。"}</p>
-                          </div>
+            const displayedSuspendedSystems = systems.filter(s => s.suspended).filter(sys => {
+              if (viewArchived) {
+                return plants.some(p => p.systemId === sys.id && !!p.archived);
+              }
+              return true;
+            });
 
-                          <div className="flex gap-2">
-                            <button 
-                              onClick={() => {
-                                setSysIdForNewPlant(sys.id);
-                                setShowAddPlant(true);
-                              }}
-                              className="px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-55 bg-emerald-50 hover:bg-emerald-100 rounded-xl flex items-center gap-1 transition-all cursor-pointer"
-                            >
-                              <Plus className="w-3.5 h-3.5" /> 植物を追加
-                            </button>
+            if (viewArchived && displayedActiveSystems.length === 0 && displayedSuspendedSystems.length === 0) {
+              return (
+                <div id="no-archived-plants" className="bg-amber-50/10 border border-dashed border-amber-200/60 rounded-3xl p-12 text-center text-slate-500 max-w-2xl mx-auto my-8">
+                  <div className="mx-auto w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center text-amber-600/80 mb-4">
+                    <Sprout className="w-8 h-8" />
+                  </div>
+                  <h4 className="font-extrabold text-slate-800 text-base mb-2">これまでに栽培完了（アーカイブ）した植物はありません</h4>
+                  <p className="text-xs text-slate-500 leading-relaxed max-w-md mx-auto">
+                    栽培を終了した植物を「栽培完了（アーカイブ）」に設定すると、これまでの成長ログや写真などの栽培記録をここに保存し、一覧として振り返ることができます。
+                  </p>
+                </div>
+              );
+            }
 
-                            <button
-                              onClick={() => {
-                                setActiveSystemSettingsId(sys.id);
-                              }}
-                              className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-205 hover:bg-slate-200 border border-slate-200 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
-                              title="プランター設定（メンバー追加、休止、削除）"
-                            >
-                              <Settings className="w-3.5 h-3.5" /> プランター設定
-                            </button>
-                          </div>
-                        </div>
+            return (
+              <div className="space-y-8">
+                {/* 稼働中のプランター */}
+                {displayedActiveSystems.length > 0 && (
+                  <div className="space-y-4">
+                    {viewArchived ? (
+                      <h3 id="archived-systems-header" className="text-xs font-bold text-slate-500 flex items-center gap-1.5 px-1 text-left">
+                        <span className="flex h-2.5 w-2.5 rounded-full bg-amber-400"></span>
+                        栽培完了の記録があるプランター ({displayedActiveSystems.length})
+                      </h3>
+                    ) : (
+                      <h3 id="active-systems-header" className="text-xs font-bold text-slate-700 flex items-center gap-1.5 px-1 text-left">
+                        <span className="flex h-2 w-2 relative">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-50"></span>
+                        </span>
+                        稼働中のプランター ({displayedActiveSystems.length})
+                      </h3>
+                    )}
+                    <div className="space-y-6">
+                      {displayedActiveSystems.map((sys) => {
+                        const sysPlants = plants.filter(p => p.systemId === sys.id && (viewArchived ? !!p.archived : !p.archived));
 
-                        {/* PLANTS IN THIS SYSTEM ROW CARDS */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2">
-                          {sysPlants.length === 0 ? (
-                            <div className="col-span-full border border-dashed border-slate-100 rounded-2xl p-6 text-center text-slate-400 text-xs bg-slate-50/10">
-                              このプランターには現在アクティブな植物がありません。
-                            </div>
-                          ) : (
-                            sysPlants.map((p) => {
-                              let alertBadge = null;
-                              const haspHAlert = p.latestPh && (p.latestPh < 5.8 || p.latestPh > 6.5);
-                              const hasTempAlert = p.latestWaterTemp && p.latestWaterTemp > 24.5;
-                              
-                              if (haspHAlert || hasTempAlert) {
-                                alertBadge = (
-                                  <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                                    <AlertTriangle className="w-3 h-3 text-white" /> 要水質調整
+                        return (
+                          <div key={sys.id} className={`${viewArchived ? 'bg-amber-500/[0.02] border border-amber-200/50 border-dashed rounded-2xl p-6 space-y-4 shadow-xs' : 'bg-white border border-slate-100 rounded-2xl p-6 shadow-xs space-y-4'}`}>
+                            <div className="flex justify-between items-start gap-4 flex-wrap">
+                              <div className="space-y-1 text-left">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${viewArchived ? 'bg-amber-50 text-amber-700 border-amber-200/60' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
+                                    {sys.type === 'DWC' ? 'DWC水耕' : sys.type === 'NFT' ? 'NFT流下' : sys.type === 'Kratky' ? 'Kratky静置' : sys.type === 'Soil_Planter' ? '土耕プランター' : sys.type === 'Backyard_Field' ? '露地畑/家庭菜園' : 'その他環境'}
                                   </span>
-                                );
-                              }
+                                  <h3 className={`font-extrabold text-base ${viewArchived ? 'text-slate-700' : 'text-slate-850'}`}>{sys.name}</h3>
+                                </div>
+                                <p className="text-slate-500 text-xs leading-relaxed">{sys.description || "このプランターについてのメモ説明はありません。"}</p>
+                              </div>
 
-                              const prediction = predictions.find(pred => pred.plantId === p.id);
-                              const expDateStr = prediction?.calculatedHarvestDate || p.expectedHarvestDate;
+                              {!viewArchived && (
+                                <div className="flex gap-2">
+                                  <button 
+                                    onClick={() => {
+                                      setSysIdForNewPlant(sys.id);
+                                      setShowAddPlant(true);
+                                    }}
+                                    className="px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-xl flex items-center gap-1 transition-all cursor-pointer"
+                                  >
+                                    <Plus className="w-3.5 h-3.5" /> 植物を追加
+                                  </button>
 
-                              const getDaysLeft = (dateStr: string) => {
-                                const today = new Date();
-                                today.setHours(0,0,0,0);
-                                const exp = new Date(dateStr);
-                                exp.setHours(0,0,0,0);
-                                const diff = exp.getTime() - today.getTime();
-                                return Math.ceil(diff / (1000 * 60 * 60 * 24));
-                              };
+                                  <button
+                                    onClick={() => {
+                                      setActiveSystemSettingsId(sys.id);
+                                    }}
+                                    className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                                    title="プランター設定（メンバー追加、休止、削除）"
+                                  >
+                                    <Settings className="w-3.5 h-3.5" /> プランター設定
+                                  </button>
+                                </div>
+                              )}
+                            </div>
 
-                              const daysLeft = expDateStr ? getDaysLeft(expDateStr) : null;
+                            {/* PLANTS IN THIS SYSTEM ROW CARDS */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2">
+                              {sysPlants.length === 0 ? (
+                                <div className="col-span-full border border-dashed border-slate-200 rounded-2xl p-8 text-center text-slate-400 text-xs bg-slate-50/20">
+                                  <Sprout className="w-5 h-5 mx-auto text-slate-300 mb-1.5" />
+                                  このプランターには現在、栽培中の植物がありません。
+                                  <button
+                                    onClick={() => {
+                                      setSysIdForNewPlant(sys.id);
+                                      setShowAddPlant(true);
+                                    }}
+                                    className="mt-2 text-emerald-600 font-bold hover:underline block mx-auto text-[11px] cursor-pointer"
+                                  >
+                                    + 新しい植物を登録して栽培を開始する
+                                  </button>
+                                </div>
+                              ) : (
+                                sysPlants.map((p) => {
+                                  if (viewArchived) {
+                                    // 栽培完了（アーカイブ）用のノスタルジック・温かみのあるアルバム調カード
+                                    const latestLogStr = p.latestLogAt ? p.latestLogAt.split("T")[0] : null;
+                                    const calcTotalDays = (startStr: string, endStr: string | null) => {
+                                      try {
+                                        const start = new Date(startStr);
+                                        const end = endStr ? new Date(endStr) : new Date();
+                                        const diff = end.getTime() - start.getTime();
+                                        const d = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                                        return d > 0 ? d : 1;
+                                      } catch {
+                                        return null;
+                                      }
+                                    };
+                                    const totalDays = calcTotalDays(p.sowingDate, latestLogStr);
 
-                              return (
-                                <div 
-                                  key={p.id}
-                                  onClick={() => onSelectPlant(p.id)}
-                                  className="group bg-slate-50/50 hover:bg-white border hover:border-emerald-300 rounded-xl p-4.5 cursor-pointer flex flex-col justify-between transition-all hover:scale-[1.01] hover:shadow-xs"
-                                >
-                                  <div className="space-y-2">
-                                    <div className="flex justify-between items-start gap-2">
-                                      <h4 className="font-bold text-slate-800 group-hover:text-emerald-700 transition-colors text-sm">{p.name}</h4>
-                                      <div className="flex gap-1.5">
-                                        {alertBadge}
-                                        <span className="text-[10px] font-mono text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded">
-                                          {p.stage === 'seedling' ? '幼苗期' : p.stage === 'vegetative' ? '栄養期' : p.stage === 'flowering' ? '開花期' : p.stage === 'harvest' ? '収穫期' : '終了'}
-                                        </span>
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="text-[11px] text-slate-500 space-y-1">
-                                      <div className="flex justify-between">
-                                        <span>品種：</span>
-                                        <span className="font-bold text-slate-700">{p.variety || "通常株"}</span>
-                                      </div>
-                                      <div className="flex justify-between font-mono">
-                                        <span>種まき日：</span>
-                                        <span>{p.sowingDate}</span>
-                                      </div>
-                                      {expDateStr && (
-                                        <div className="flex justify-between items-baseline pt-1 border-t border-slate-100/50">
-                                          <span>AI予測収穫：</span>
-                                          <div className="text-[11px] flex items-baseline gap-1 font-sans font-bold">
-                                            <span className="text-slate-800">{expDateStr}</span>
-                                            {daysLeft !== null && (
-                                              <span className={`text-[10px] ${daysLeft < 0 ? "text-rose-600" : daysLeft <= 3 ? "text-amber-600 animate-pulse font-extrabold" : daysLeft <= 10 ? "text-emerald-700" : "text-slate-500"}`}>
-                                                ({daysLeft < 0 ? `経過+${Math.abs(daysLeft)}日` : `あと${daysLeft}日`})
-                                              </span>
+                                    return (
+                                      <div 
+                                        key={p.id}
+                                        onClick={() => onSelectPlant(p.id)}
+                                        className="group bg-amber-50/[0.12] hover:bg-white border border-amber-200/50 hover:border-amber-300 rounded-xl p-4.5 cursor-pointer flex flex-col justify-between transition-all hover:scale-[1.01] hover:shadow-xs text-left"
+                                        id={`archived-plant-card-${p.id}`}
+                                      >
+                                        <div className="space-y-3">
+                                          <div className="flex justify-between items-start gap-2">
+                                            <h4 className="font-bold text-slate-700 group-hover:text-amber-800 transition-colors text-sm flex items-center gap-1">
+                                              🎓 {p.name}
+                                            </h4>
+                                            <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200/60 px-1.5 py-0.5 rounded">
+                                              栽培完了
+                                            </span>
+                                          </div>
+                                          
+                                          <div className="text-[11px] text-slate-500 space-y-1 bg-slate-100/30 p-2.5 rounded-lg border border-slate-100/30">
+                                            <div className="flex justify-between">
+                                              <span>品種：</span>
+                                              <span className="font-semibold text-slate-700">{p.variety || "通常株"}</span>
+                                            </div>
+                                            <div className="flex justify-between font-mono">
+                                              <span>種まき日：</span>
+                                              <span>{p.sowingDate}</span>
+                                            </div>
+                                            {latestLogStr && (
+                                              <div className="flex justify-between font-mono">
+                                                <span>終了日：</span>
+                                                <span>{latestLogStr}</span>
+                                              </div>
+                                            )}
+                                            {totalDays !== null && (
+                                              <div className="flex justify-between items-baseline pt-1 border-t border-slate-100/50">
+                                                <span>総栽培日数：</span>
+                                                <span className="font-bold text-amber-800">{totalDays} 日間</span>
+                                              </div>
                                             )}
                                           </div>
                                         </div>
-                                      )}
-                                    </div>
 
-                                    {prediction?.reason && (
-                                      <div className="mt-2 text-[9.5px]/relaxed text-slate-500 font-sans italic border-l-2 border-emerald-200 pl-2 leading-relaxed" title={prediction.reason}>
-                                        💡 {prediction.reason}
+                                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                                          <div className="flex gap-2 text-[10px] text-slate-400 font-mono">
+                                            <span>記録: <strong className="text-slate-600 font-semibold">{p.logCount || 0}件</strong></span>
+                                            {p.photoCount > 0 && (
+                                              <span>写真: <strong className="text-slate-600 font-semibold">{p.photoCount}枚</strong></span>
+                                            )}
+                                          </div>
+
+                                          <div className="flex items-center gap-1 text-[11px] font-bold text-amber-700/80 group-hover:text-amber-800 transition-colors">
+                                            <span>記録を表示</span>
+                                            <ChevronRight className="w-3.5 h-3.5 text-amber-400 group-hover:translate-x-0.5 transition-all" />
+                                          </div>
+                                        </div>
                                       </div>
-                                    )}
-                                  </div>
+                                    );
+                                  }
 
-                                  <div className="mt-4 pt-4 border-t border-slate-100/60 flex items-center justify-between gap-2 flex-wrap">
-                                    <div className="flex gap-2 text-[10px] text-slate-400 font-mono">
-                                      <span>pH: <strong className={haspHAlert ? "text-amber-600 font-bold" : "text-slate-600"}>{p.latestPh ?? "ー"}</strong></span>
-                                      <span>EC: <strong className="text-slate-600">{p.latestEc ? `${p.latestEc}` : "ー"}</strong></span>
-                                      <span>気温: <strong className={hasTempAlert ? "text-amber-600 font-bold" : "text-slate-600"}>{p.latestWaterTemp ? `${p.latestWaterTemp}℃` : "ー"}</strong></span>
+                                  // 以下は通常のアクティブ用カード
+                                  let alertBadge = null;
+                                  const haspHAlert = p.latestPh && (p.latestPh < 5.8 || p.latestPh > 6.5);
+                                  const hasTempAlert = p.latestWaterTemp && p.latestWaterTemp > 24.5;
+                                  
+                                  if (haspHAlert || hasTempAlert) {
+                                    alertBadge = (
+                                      <span className="bg-amber-500 text-white text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                                        <AlertTriangle className="w-3 h-3 text-white" /> 要水質調整
+                                      </span>
+                                    );
+                                  }
+
+                                  const prediction = predictions.find(pred => pred.plantId === p.id);
+                                  const expDateStr = prediction?.calculatedHarvestDate || p.expectedHarvestDate;
+
+                                  const getDaysLeft = (dateStr: string) => {
+                                    const today = new Date();
+                                    today.setHours(0,0,0,0);
+                                    const exp = new Date(dateStr);
+                                    exp.setHours(0,0,0,0);
+                                    const diff = exp.getTime() - today.getTime();
+                                    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+                                  };
+
+                                  const daysLeft = expDateStr ? getDaysLeft(expDateStr) : null;
+
+                                  return (
+                                    <div 
+                                      key={p.id}
+                                      onClick={() => onSelectPlant(p.id)}
+                                      className="group bg-slate-50/50 hover:bg-white border hover:border-emerald-300 rounded-xl p-4.5 cursor-pointer flex flex-col justify-between transition-all hover:scale-[1.01] hover:shadow-xs"
+                                    >
+                                      <div className="space-y-2">
+                                        <div className="flex justify-between items-start gap-2">
+                                          <h4 className="font-bold text-slate-800 group-hover:text-emerald-700 transition-colors text-sm">{p.name}</h4>
+                                          <div className="flex gap-1.5">
+                                            {alertBadge}
+                                            <span className="text-[10px] font-mono text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded">
+                                              {p.stage === 'seedling' ? '幼苗期' : p.stage === 'vegetative' ? '栄養期' : p.stage === 'flowering' ? '開花期' : p.stage === 'harvest' ? '収穫期' : '終了'}
+                                            </span>
+                                          </div>
+                                        </div>
+                                        
+                                        <div className="text-[11px] text-slate-500 space-y-1">
+                                          <div className="flex justify-between">
+                                            <span>品種：</span>
+                                            <span className="font-bold text-slate-700">{p.variety || "通常株"}</span>
+                                          </div>
+                                          <div className="flex justify-between font-mono">
+                                            <span>種まき日：</span>
+                                            <span>{p.sowingDate}</span>
+                                          </div>
+                                          {expDateStr && (
+                                            <div className="flex justify-between items-baseline pt-1 border-t border-slate-100/50">
+                                              <span>AI予測収穫：</span>
+                                              <div className="text-[11px] flex items-baseline gap-1 font-sans font-bold">
+                                                <span className="text-slate-800">{expDateStr}</span>
+                                                {daysLeft !== null && (
+                                                  <span className={`text-[10px] ${daysLeft < 0 ? "text-rose-600" : daysLeft <= 3 ? "text-amber-600 animate-pulse font-extrabold" : daysLeft <= 10 ? "text-emerald-700" : "text-slate-500"}`}>
+                                                    ({daysLeft < 0 ? `経過+${Math.abs(daysLeft)}日` : `あと${daysLeft}日`})
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+
+                                        {prediction?.reason && (
+                                          <div className="mt-2 text-[9.5px]/relaxed text-slate-500 font-sans italic border-l-2 border-emerald-200 pl-2 leading-relaxed" title={prediction.reason}>
+                                            💡 {prediction.reason}
+                                          </div>
+                                        )}
+                                      </div>
+
+                                      <div className="mt-4 pt-4 border-t border-slate-100/60 flex items-center justify-between gap-2 flex-wrap">
+                                        <div className="flex gap-2 text-[10px] text-slate-400 font-mono">
+                                          <span>pH: <strong className={haspHAlert ? "text-amber-600 font-bold" : "text-slate-600"}>{p.latestPh ?? "ー"}</strong></span>
+                                          <span>EC: <strong className="text-slate-600">{p.latestEc ? `${p.latestEc}` : "ー"}</strong></span>
+                                          <span>気温: <strong className={hasTempAlert ? "text-amber-600 font-bold" : "text-slate-600"}>{p.latestWaterTemp ? `${p.latestWaterTemp}℃` : "ー"}</strong></span>
+                                        </div>
+
+                                        <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
+                                      </div>
                                     </div>
-
-                                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
-                                  </div>
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* 一時休止中のプランター */}
-            {systems.filter(s => s.suspended).length > 0 && (
-              <div className="space-y-4 pt-4 border-t border-slate-100">
-                <h3 className="text-xs font-bold text-slate-500 flex items-center gap-1.5 px-1">
-                  <span className="inline-flex rounded-full h-2 w-2 bg-slate-400"></span>
-                  一時休止中のプランター ({systems.filter(s => s.suspended).length})
-                </h3>
-                <div className="space-y-6">
-                  {systems.filter(s => s.suspended).map((sys) => {
-                    const sysPlants = plants.filter(p => p.systemId === sys.id && (viewArchived ? !!p.archived : !p.archived));
-
-                    return (
-                      <div key={sys.id} className="bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 opacity-80 hover:opacity-100 transition-opacity">
-                        <div className="flex justify-between items-start gap-4 flex-wrap">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-slate-200 text-slate-600 border border-slate-300">
-                                休止中 / {sys.type === 'DWC' ? 'DWC水耕' : sys.type === 'NFT' ? 'NFT流下' : sys.type === 'Kratky' ? 'Kratky静置' : 'Other'}
-                              </span>
-                              <h3 className="font-extrabold text-slate-600 text-base line-through">{sys.name}</h3>
+                                  );
+                                })
+                              )}
                             </div>
-                            <p className="text-slate-400 text-xs leading-relaxed">{sys.description || "このプランターについてのメモ説明はありません。"}</p>
                           </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                setActiveSystemSettingsId(sys.id);
-                              }}
-                              className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
-                              title="プランター設定（メンバー追加、再開、削除）"
-                            >
-                              <Settings className="w-3.5 h-3.5" /> プランター設定
-                            </button>
-                          </div>
-                        </div>
+                {/* 一時休止中のプランター */}
+                {displayedSuspendedSystems.length > 0 && (
+                  <div className="space-y-4 pt-4 border-t border-slate-100">
+                    {viewArchived ? (
+                      <h3 className="text-xs font-bold text-slate-500 flex items-center gap-1.5 px-1">
+                        <span className="inline-flex rounded-full h-2 w-2 bg-slate-400"></span>
+                        栽培完了の記録があるプランター（一時休止中） ({displayedSuspendedSystems.length})
+                      </h3>
+                    ) : (
+                      <h3 className="text-xs font-bold text-slate-500 flex items-center gap-1.5 px-1">
+                        <span className="inline-flex rounded-full h-2 w-2 bg-slate-400"></span>
+                        一時休止中のプランター ({displayedSuspendedSystems.length})
+                      </h3>
+                    )}
+                    <div className="space-y-6">
+                      {displayedSuspendedSystems.map((sys) => {
+                        const sysPlants = plants.filter(p => p.systemId === sys.id && (viewArchived ? !!p.archived : !p.archived));
 
-                        {/* PLANTS IN THIS SYSTEM ROW CARDS – ONLY VISIBLE IF ARCHIVED TAB AND HAS PLANTS */}
-                        {viewArchived && sysPlants.length > 0 && (
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2 border-t border-slate-200 border-dashed">
-                            {sysPlants.map((p) => (
-                              <div 
-                                key={p.id}
-                                onClick={() => onSelectPlant(p.id)}
-                                className="group bg-white/60 hover:bg-white border hover:border-emerald-300 rounded-xl p-4.5 cursor-pointer flex flex-col justify-between transition-all"
-                              >
-                                <div className="space-y-2">
-                                  <div className="flex justify-between items-start gap-2">
-                                    <h4 className="font-bold text-slate-600 text-sm">{p.name} (終了)</h4>
-                                  </div>
-                                  <div className="text-[11px] text-slate-400 space-y-1">
-                                    <div className="flex justify-between">
-                                      <span>品種：</span>
-                                      <span>{p.variety || "通常株"}</span>
-                                    </div>
-                                    <div className="flex justify-between font-mono">
-                                      <span>種まき日：</span>
-                                      <span>{p.sowingDate}</span>
-                                    </div>
-                                  </div>
+                        return (
+                          <div key={sys.id} className={`${viewArchived ? 'bg-amber-500/[0.01] border border-amber-200/40 border-dashed rounded-2xl p-6 space-y-4 opacity-80 hover:opacity-100 transition-opacity shadow-xs' : 'bg-slate-50 border border-slate-200 rounded-2xl p-6 space-y-4 opacity-80 hover:opacity-100 transition-opacity'}`}>
+                            <div className="flex justify-between items-start gap-4 flex-wrap">
+                              <div className="space-y-1">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-slate-200 text-slate-600 border border-slate-300">
+                                    休止中 / {sys.type === 'DWC' ? 'DWC水耕' : sys.type === 'NFT' ? 'NFT流下' : sys.type === 'Kratky' ? 'Kratky静置' : 'Other'}
+                                  </span>
+                                  <h3 className="font-extrabold text-slate-600 text-base line-through">{sys.name}</h3>
                                 </div>
-                                <div className="mt-4 pt-4 border-t border-slate-100/60 flex items-center justify-between">
-                                  <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">栽培終了(アーカイブ)</span>
-                                  <ChevronRight className="w-4 h-4 text-slate-300" />
-                                </div>
+                                <p className="text-slate-400 text-xs leading-relaxed">{sys.description || "このプランターについてのメモ説明はありません。"}</p>
                               </div>
-                            ))}
+
+                              {!viewArchived && (
+                                <div className="flex gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setActiveSystemSettingsId(sys.id);
+                                    }}
+                                    className="px-3 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                                    title="プランター設定（メンバー追加、再開、削除）"
+                                  >
+                                    <Settings className="w-3.5 h-3.5" /> プランター設定
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* PLANTS IN THIS SYSTEM ROW CARDS – ONLY VISIBLE IF ARCHIVED TAB AND HAS PLANTS */}
+                            {sysPlants.length > 0 && (
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-2 border-t border-slate-200 border-dashed">
+                                {sysPlants.map((p) => {
+                                  if (viewArchived) {
+                                    const latestLogStr = p.latestLogAt ? p.latestLogAt.split("T")[0] : null;
+                                    const calcTotalDays = (startStr: string, endStr: string | null) => {
+                                      try {
+                                        const start = new Date(startStr);
+                                        const end = endStr ? new Date(endStr) : new Date();
+                                        const diff = end.getTime() - start.getTime();
+                                        const d = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                                        return d > 0 ? d : 1;
+                                      } catch {
+                                        return null;
+                                      }
+                                    };
+                                    const totalDays = calcTotalDays(p.sowingDate, latestLogStr);
+
+                                    return (
+                                      <div 
+                                        key={p.id}
+                                        onClick={() => onSelectPlant(p.id)}
+                                        className="group bg-amber-50/[0.12] hover:bg-white border border-amber-200/50 hover:border-amber-300 rounded-xl p-4.5 cursor-pointer flex flex-col justify-between transition-all hover:scale-[1.01] hover:shadow-xs text-left"
+                                        id={`archived-suspended-plant-card-${p.id}`}
+                                      >
+                                        <div className="space-y-3">
+                                          <div className="flex justify-between items-start gap-2">
+                                            <h4 className="font-bold text-slate-700 group-hover:text-amber-800 transition-colors text-sm flex items-center gap-1">
+                                              🎓 {p.name}
+                                            </h4>
+                                            <span className="text-[10px] font-bold text-amber-800 bg-amber-50 border border-amber-200/60 px-1.5 py-0.5 rounded">
+                                              栽培完了
+                                            </span>
+                                          </div>
+                                          
+                                          <div className="text-[11px] text-slate-500 space-y-1 bg-slate-100/30 p-2.5 rounded-lg border border-slate-100/30">
+                                            <div className="flex justify-between">
+                                              <span>品種：</span>
+                                              <span className="font-semibold text-slate-700">{p.variety || "通常株"}</span>
+                                            </div>
+                                            <div className="flex justify-between font-mono">
+                                              <span>種まき日：</span>
+                                              <span>{p.sowingDate}</span>
+                                            </div>
+                                            {latestLogStr && (
+                                              <div className="flex justify-between font-mono">
+                                                <span>終了日：</span>
+                                                <span>{latestLogStr}</span>
+                                              </div>
+                                            )}
+                                            {totalDays !== null && (
+                                              <div className="flex justify-between items-baseline pt-1 border-t border-slate-100/50">
+                                                <span>総栽培日数：</span>
+                                                <span className="font-bold text-amber-800">{totalDays} 日間</span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+                                          <div className="flex gap-2 text-[10px] text-slate-400 font-mono">
+                                            <span>記録: <strong className="text-slate-600 font-semibold">{p.logCount || 0}件</strong></span>
+                                            {p.photoCount > 0 && (
+                                              <span>写真: <strong className="text-slate-600 font-semibold">{p.photoCount}枚</strong></span>
+                                            )}
+                                          </div>
+
+                                          <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all animate-pulse" />
+                                        </div>
+                                      </div>
+                                    );
+                                  }
+
+                                  // 非アーカイブ時の休止植物カードはシンプルに表示
+                                  return (
+                                    <div 
+                                      key={p.id}
+                                      onClick={() => onSelectPlant(p.id)}
+                                      className="group bg-white/60 hover:bg-white border hover:border-emerald-300 rounded-xl p-4.5 cursor-pointer flex flex-col justify-between transition-all"
+                                    >
+                                      <div className="space-y-2 text-left">
+                                        <div className="flex justify-between items-start gap-2">
+                                          <h4 className="font-bold text-slate-600 text-sm">{p.name}</h4>
+                                          <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">終了</span>
+                                        </div>
+                                        <div className="text-[11px] text-slate-400 space-y-1">
+                                          <div className="flex justify-between">
+                                            <span>品種：</span>
+                                            <span>{p.variety || "通常株"}</span>
+                                          </div>
+                                          <div className="flex justify-between font-mono">
+                                            <span>種まき日：</span>
+                                            <span>{p.sowingDate}</span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="mt-4 pt-4 border-t border-slate-100/60 flex items-center justify-between">
+                                        <span className="text-[10px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded">一時休止中</span>
+                                        <ChevronRight className="w-4 h-4 text-slate-300" />
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
-            {systems.length === 0 && (
-              <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-10 text-center text-slate-500">
-                <p className="font-bold text-slate-750 mb-1">プランターが登録されていません</p>
-                <p className="text-xs text-slate-400">まずは上の「プランターを追加する」ボタンから登録しましょう！</p>
+                {systems.length === 0 && (
+                  <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-10 text-center text-slate-500">
+                    <p className="font-bold text-slate-755 mb-1 text-slate-705">プランターが登録されていません</p>
+                    <p className="text-xs text-slate-400">まずは上の「プランターを追加する」ボタンから登録しましょう！</p>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-
+            );
+          })()}
         </div>
+
       ) : (
         
         /* SELECTED PLANT FULL PAGE PROFILE AND INTERACTIVE ADVISOR TAB-SHEETS */
