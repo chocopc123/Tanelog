@@ -312,8 +312,10 @@ export default function App() {
         setAuthError("ポップアップがブロックされました。ポップアップ許可を確認してください。");
       } else if (err.code === "auth/cancelled-popup-request" || err.code === "auth/popup-closed-by-user") {
         setAuthError(""); // Ignore cancellation quietly
+      } else if (err.code === "auth/unauthorized-domain") {
+        setAuthError(`このドメイン (${window.location.hostname}) が Firebase Authentication の承認済みドメインに登録されていません。Firebase コンソールの [Authentication] -> [設定] -> [承認済みドメイン] にこのドメインを追加してください。`);
       } else {
-        setAuthError("Google認証への接続中にエラーが発生しました。");
+        setAuthError(`Google認証への接続中にエラーが発生しました。エラーコード: ${err.code || "unknown"} (${err.message || err})`);
       }
     }
   };
