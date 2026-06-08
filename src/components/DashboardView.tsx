@@ -134,7 +134,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* 3. Stats & Tasks Bento Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 items-start">
         {/* Statistics Widgets */}
         <div className="md:col-span-1 grid grid-cols-2 gap-4">
           <div className="bg-slate-50/50 hover:bg-slate-50 border border-slate-100/80 p-4 rounded-xl flex flex-col justify-between transition-colors whitespace-normal">
