@@ -362,6 +362,24 @@ app.post("/api/auth/register", async (req, res) => {
   return res.json({ user: newUser, token: newUser.id });
 });
 
+app.get("/api/auth/me", async (req, res) => {
+  try {
+    const token = req.headers.authorization?.split(" ")[1];
+    if (!token) {
+      return res.status(401).json({ error: "認証トークンが提供されていません" });
+    }
+    const currentDb = await readDB();
+    const user = currentDb.users.find(u => u.id === token);
+    if (!user) {
+      return res.status(401).json({ error: "セッションが無効であるか期限切れです" });
+    }
+    return res.json({ user });
+  } catch (error) {
+    console.error("セッション検証中にエラーが発生しました:", error);
+    return res.status(500).json({ error: "サーバー内部エラー" });
+  }
+});
+
 app.get("/api/weather-advice", async (req, res) => {
   try {
     const user = await getUserContext(req);
