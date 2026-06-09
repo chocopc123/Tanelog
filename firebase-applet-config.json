@@ -1,10 +1,9 @@
 {
-  "projectId": "gen-lang-client-0493293975",
-  "appId": "1:615019583620:web:1e4812da9148204cb60ad1",
-  "apiKey": "AIzaSyAgzKcSAWLhiH_H4dy2D2EZdxD2bM7Frcc",
-  "authDomain": "gen-lang-client-0493293975.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-3d3fb2c1-566f-4788-b809-56a7fd72bf5d",
-  "storageBucket": "gen-lang-client-0493293975.firebasestorage.app",
-  "messagingSenderId": "615019583620",
-  "measurementId": ""
+  "projectId": "tanelog",
+  "appId": "1:112429636743:web:090e94c6b6261e00a26c22",
+  "apiKey": "AIzaSyB0t5B9Y1E5un_k4YH4UYUxwIIEZXXjT2U",
+  "authDomain": "tanelog.firebaseapp.com",
+  "storageBucket": "tanelog.firebasestorage.app",
+  "messagingSenderId": "112429636743",
+  "measurementId": "G-B62C79JNWW"
 }
