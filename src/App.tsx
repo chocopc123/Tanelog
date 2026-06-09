@@ -10,7 +10,7 @@ import { SettingsView } from "./components/SettingsView";
 import { 
   Activity, Calendar as CalendarIcon, Droplets, Settings, LogOut, Sprout, ShieldAlert, CloudRain, CheckSquare, Sparkles 
 } from "lucide-react";
-import { auth, GoogleAuthProvider, signInWithPopup } from "./firebase";
+import { auth, GoogleAuthProvider, signInWithPopup, browserPopupRedirectResolver } from "./firebase";
 import { TanelogLoader } from "./components/TanelogLoader";
 
 const retryFetch = async (
@@ -318,7 +318,7 @@ export default function App() {
     try {
       const provider = new GoogleAuthProvider();
       provider.setCustomParameters({ prompt: "select_account" });
-      const result = await signInWithPopup(auth, provider);
+      const result = await signInWithPopup(auth, provider, browserPopupRedirectResolver);
       
       const idToken = await result.user.getIdToken();
       const ep = "/api/auth/login";
