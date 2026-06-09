@@ -1,20 +1,87 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# たねログ (Tanelog) 🌱
 
-# Run and deploy your AI Studio app
+たねログ (Tanelog) は、水耕栽培や土耕栽培のプランター栽培をスマートに管理するための、React + Express + Firebase ベースの共同栽培管理 & AIアシストアプリケーションです。
 
-This contains everything you need to run your app locally.
+---
 
-View your app in AI Studio: https://ai.studio/apps/3d3fb2c1-566f-4788-b809-56a7fd72bf5d
+## 🌟 主な機能
 
-## Run Locally
+### 1. ダッシュボード & 気候アドバイス ☀️
+- **AI天気アドバイス**: 入力された栽培地域（例：長野県長野市）のリアルタイムな気象予報を検索し、Gemini 3.5 Flash が今日・明日のお世話のアドバイスを自動生成してバナー表示します。
+- **本日のタスク**: 今日行うべき水やりや施肥などの作業スケジュールを表示します。
 
-**Prerequisites:**  Node.js
+### 2. システム & 植物管理 🌿
+- **栽培システムの登録**: 水耕栽培（循環式、静置式など）や土耕栽培（プランター、地植えなど）のシステムを複数登録・管理できます。
+- **植物ごとの成長追跡**: 植物の品種、成長ステージ（苗期、生長期、開花期、実り期など）、播種日、使用している肥料などの詳細情報を管理できます。
 
+### 3. 測定ログと成長記録（写真付きノート） 📸
+- **環境値の記録**: pH、EC、水温などを記録し、環境の変化をトラッキングできます。
+- **お世話の記録**: 水やり（Watered）や施肥（Applied Fertilizer）の記録をシームレスに行えます。
+- **写真付きノート**: 成長の様子を写真（画像データ）とともにノートとして保存できます。
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+### 4. AI収穫予測 🧠
+- 過去の成長ログや播種日、成長ステージに基づいて、Gemini 3.5 Flash が科学的・植物学的な根拠を伴う「収穫予測日」を算出します。
+- AIモデルが高負荷な場合や接続エラー時は、植物の品種に応じたルールベースの自動フォールバック予測を行います。
+
+### 5. 共同栽培機能（メンバー招待） 👥
+- 他の栽培メンバーをメールアドレスで招待し、システムや植物の情報を共同で管理・編集できます。
+- データの変更は自動的にポーリング（15秒ごと）され、共同栽培者間でリアルタイムに近い状態で同期されます。
+
+### 6. スケジュール提案 & タスクの自動ログ連携 📅
+- システムの種類（水耕か土耕か）や成長段階に応じて、AIやルールベースによって水やり・施肥のスケジュールタスクが自動で提案されます。
+- 提案されたタスクを完了（チェック）すると、その内容が対応する植物の測定履歴や施肥履歴に自動でログエントリーとして作成されます。
+
+---
+
+## 🚀 セットアップと起動方法
+
+### 前提条件
+- **Node.js** (v18以上推奨)
+- **Firebase CLI** (Firebase Local Emulatorを使用する場合)
+
+### 1. 依存関係のインストール
+プロジェクトのルートディレクトリで以下を実行します。
+```bash
+npm install
+```
+
+### 2. 環境変数の設定
+プロジェクトのルートディレクトリに `.env` または `.env.local` ファイルを作成し、必要な環境変数を記述します。
+設定のひな形は `.env.example` を参考にしてください。
+
+```ini
+# Gemini APIの利用に必要なAPIキー
+GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
+
+# アプリケーションのホストURL
+APP_URL="http://localhost:3000"
+```
+
+また、Firebaseの接続設定ファイルとして、プロジェクトルートに `firebase-applet-config.json` を配置してください。
+
+### 3. Firebase Local Emulator Suite の起動
+ローカル開発時は、認証（Auth）およびデータベース（Firestore）のモックとして Firebase Emulator を使用します。
+```bash
+npx firebase emulators:start
+```
+> [!NOTE]
+> エミュレータを起動すると、デフォルトで `localhost:9099` (Auth) および `localhost:8080` (Firestore) でエミュレータが起動します。アプリケーションは開発環境（`import.meta.env.DEV`）において自動でこれらのエミュレータに接続します。
+
+### 4. アプリケーションの起動
+別のターミナルで以下を実行し、Vite開発サーバーおよびExpress APIサーバーを起動します。
+```bash
+npm run dev
+```
+起動後、ブラウザで [http://localhost:3000](http://localhost:3000) にアクセスします。
+
+---
+
+## 🛠 スクリプトコマンド
+
+`package.json` に定義されている主要なスクリプトは以下の通りです。
+
+- `npm run dev`: 開発用サーバー（Vite + Express）の起動
+- `npm run build`: フロントエンドのViteビルド、およびバックエンドサーバー（`server.ts`）のesbuildによるコンパイル・バンドル
+- `npm run start`: ビルドされた本番用サーバー（`dist/server.cjs`）の起動
+- `npm run lint`: TypeScriptの型チェック（`tsc --noEmit`）
+- `npm run clean`: ビルド成果物（`dist` ディレクトリ）の削除
