@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ScheduleProposal, ProposalStatus } from "../types";
+import { ScheduleProposal, ProposalStatus, isSoilSystem } from "../types";
 import { 
   Calendar, ChevronLeft, ChevronRight, Download, Check, X, Clock, HelpCircle, AlertCircle, Pencil, Plus
 } from "lucide-react";
@@ -45,7 +45,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     if (!plant) return false;
     const sys = (systems || []).find(s => s.id === plant.systemId);
     if (!sys) return false;
-    return sys.type === "Soil_Planter" || sys.type === "Backyard_Field";
+    return isSoilSystem(sys.type);
   };
 
   const startEditingProposal = (proposal: any) => {

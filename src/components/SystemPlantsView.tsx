@@ -3,7 +3,7 @@ import { useScrollToTop } from "../hooks/useScrollToTop";
 import { ActiveArchivedTabs } from "./ActiveArchivedTabs";
 import { motion, AnimatePresence } from "motion/react";
 import { 
-  User, System, Plant, GrowLog, PlantPhoto, NutrientLog, ChatMessage, MemberRole, SystemType, PlantStage, HarvestPrediction 
+  User, System, Plant, GrowLog, PlantPhoto, NutrientLog, ChatMessage, MemberRole, SystemType, PlantStage, HarvestPrediction, getSystemTypeLabel, isSoilSystem
 } from "../types";
 import { 
   Plus, Droplets, Trash2, Edit3, MessageSquare, ArrowLeft, Calendar, 
@@ -97,7 +97,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
 }) => {
   // Compute global climate garden parameters
   const currentSys = selectedPlant ? systems.find((s) => s.id === selectedPlant.systemId) : null;
-  const isSoil = currentSys && (currentSys.type === "Soil_Planter" || currentSys.type === "Backyard_Field");
+  const isSoil = currentSys && isSoilSystem(currentSys.type);
 
   // Navigation inside this panel
   const [showAddSys, setShowAddSys] = useState(false);
@@ -106,7 +106,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
 
   // Create System form state
   const [newSysName, setNewSysName] = useState("");
-  const [newSysType, setNewSysType] = useState<SystemType>("DWC");
+  const [newSysType, setNewSysType] = useState<SystemType>("Outdoor_Soil");
   const [newSysDesc, setNewSysDesc] = useState("");
 
   // Create Plant form state
@@ -971,19 +971,17 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-slate-500 text-xs font-bold mb-1 font-sans">プランター種別・環境タイプ</label>
+                  <label className="block text-slate-500 text-xs font-bold mb-1 font-sans">栽培スタイル・環境タイプ</label>
                   <select 
                     value={newSysType} 
                     onChange={(e) => setNewSysType(e.target.value as SystemType)}
                     className="w-full px-3 py-2 text-base md:text-xs bg-white border border-slate-200 rounded-xl text-slate-700 font-sans"
                   >
-                    <option value="Soil_Planter">ベランダプランター栽培 (土耕)</option>
-                    <option value="Backyard_Field">お庭の菜園プランター・地面プランター</option>
-                    <option value="DWC">水耕: DWC (深水エアー循環式)</option>
-                    <option value="NFT">水耕: NFT (薄膜傾斜流下式)</option>
-                    <option value="Kratky">水耕: Kratky (ノンエアー密閉ボトル)</option>
-                    <option value="Ebb_Flow">水耕: Ebb & Flow (潮汐満排水式)</option>
-                    <option value="Other">その他 (砂利・ハイドロコーン等)</option>
+                    <option value="Outdoor_Soil">室外プランター (土耕)</option>
+                    <option value="Indoor_Soil">室内プランター (土耕)</option>
+                    <option value="Outdoor_Ground">お庭の菜園・地植え (畑)</option>
+                    <option value="Hydro_Water">水耕プランター</option>
+                    <option value="Other">その他</option>
                   </select>
                 </div>
               </div>
@@ -993,9 +991,12 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                 <textarea 
                   value={newSysDesc} 
                   onChange={(e) => setNewSysDesc(e.target.value)}
-                  placeholder="元肥の配合、土の量、LED自動タイマーの時間、プランター容量など自由記入"
+                  placeholder="土の配合や量、使用しているライトや機材の仕様、肥料の与え方、自動散水の設定など、お使いの設備の詳細を自由に記入"
                   className="w-full p-3 text-base md:text-xs bg-white border border-slate-200 focus:border-emerald-500 rounded-xl text-slate-700 h-16 resize-none font-sans"
                 />
+                <span className="text-[10px] text-slate-400 block mt-1 leading-relaxed">
+                  ※ お使いの栽培設備や育成環境についての詳細情報をこの説明欄に入力していただくと、AIアドバイス等にも反映されます。
+                </span>
               </div>
 
               <div className="flex gap-2 justify-end">
@@ -1169,7 +1170,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                               <div className="space-y-1 text-left">
                                 <div className="flex items-center gap-2">
                                   <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded border ${viewArchived ? 'bg-amber-50 text-amber-700 border-amber-200/60' : 'bg-emerald-50 text-emerald-700 border-emerald-100'}`}>
-                                    {sys.type === 'DWC' ? '水耕プランター (DWC)' : sys.type === 'NFT' ? '水耕プランター (NFT)' : sys.type === 'Kratky' ? '静置水耕プランター' : sys.type === 'Soil_Planter' ? '土耕用プランター' : sys.type === 'Backyard_Field' ? '屋外設置プランター' : 'その他プランター'}
+                                    {getSystemTypeLabel(sys.type)}
                                   </span>
                                   <h3 className={`font-extrabold text-base ${viewArchived ? 'text-slate-700' : 'text-slate-850'}`}>{sys.name}</h3>
                                 </div>
@@ -1413,7 +1414,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                               <div className="space-y-1">
                                 <div className="flex items-center gap-2">
                                   <span className="text-xs uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-slate-200 text-slate-600 border border-slate-300">
-                                    休止中 / {sys.type === 'DWC' ? 'DWC水耕' : sys.type === 'NFT' ? 'NFT流下' : sys.type === 'Kratky' ? 'Kratky静置' : 'Other'}
+                                    休止中 / {getSystemTypeLabel(sys.type)}
                                   </span>
                                   <h3 className="font-extrabold text-slate-600 text-base line-through">{sys.name}</h3>
                                 </div>

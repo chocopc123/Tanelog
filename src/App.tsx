@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect } from "react";
 import { useScrollToTop } from "./hooks/useScrollToTop";
 import { 
-  User, System, Plant, ScheduleProposal, ProposalStatus, SystemType, PlantStage, HarvestPrediction 
+  User, System, Plant, ScheduleProposal, ProposalStatus, SystemType, PlantStage, HarvestPrediction, isSoilSystem 
 } from "./types";
 import { DashboardView } from "./components/DashboardView";
 import { CalendarView } from "./components/CalendarView";
@@ -781,7 +781,7 @@ export default function App() {
       // 2. Resolve plant and system to see if it is soil
       const plant = plants.find((p) => p.id === task.plantId);
       const sys = plant ? systems.find((s) => s.id === plant.systemId) : null;
-      const isSoil = sys && (sys.type === "Soil_Planter" || sys.type === "Backyard_Field");
+      const isSoil = sys && isSoilSystem(sys.type);
 
       // 3. Automatically add a matching log entries
       if (task.type === "watering") {

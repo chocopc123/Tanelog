@@ -7,7 +7,28 @@ export interface User {
   showPhEc?: boolean;
 }
 
-export type SystemType = 'Soil_Planter' | 'Backyard_Field' | 'DWC' | 'NFT' | 'Kratky' | 'Ebb_Flow' | 'Other';
+export type SystemType = 'Indoor_Soil' | 'Outdoor_Soil' | 'Outdoor_Ground' | 'Hydro_Water' | 'Other';
+
+export function getSystemTypeLabel(type: SystemType): string {
+  switch (type) {
+    case 'Indoor_Soil':
+      return '室内プランター (土耕)';
+    case 'Outdoor_Soil':
+      return '室外プランター (土耕)';
+    case 'Outdoor_Ground':
+      return 'お庭の菜園・地植え (畑)';
+    case 'Hydro_Water':
+      return '水耕プランター';
+    case 'Other':
+      return 'その他';
+    default:
+      return '栽培用設備';
+  }
+}
+
+export function isSoilSystem(type: SystemType): boolean {
+  return type === 'Indoor_Soil' || type === 'Outdoor_Soil' || type === 'Outdoor_Ground';
+}
 
 export interface System {
   id: string;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { 
-  User, System, Plant, ScheduleProposal, ProposalStatus, ProposalType, HarvestPrediction 
+  User, System, Plant, ScheduleProposal, ProposalStatus, ProposalType, HarvestPrediction, getSystemTypeLabel, isSoilSystem
 } from "../types";
 import { 
   Plus, Calendar, Activity, AlertCircle, Droplets, 
@@ -302,7 +302,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   <div className="p-4.5 flex-1">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-0.5 rounded border border-slate-100/60 font-sans">
-                        {sys.type === 'DWC' ? '水耕プランター (DWC)' : sys.type === 'NFT' ? '水耕プランター (NFT)' : sys.type === 'Kratky' ? '静置水耕プランター' : sys.type === 'Soil_Planter' ? '土耕用プランター' : sys.type === 'Backyard_Field' ? '屋外設置プランター' : '栽培用プランター'}
+                        {getSystemTypeLabel(sys.type)}
                       </span>
                       <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded">稼働中</span>
                     </div>
