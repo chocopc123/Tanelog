@@ -778,7 +778,65 @@ ${JSON.stringify(plantsData, null, 2)}
         }
       } catch (err: any) {
         console.error("AI harvest predictions calculation failed:", err);
-        geminiError = err?.message || String(err);
+        const rawErrorMsg = err?.message || String(err);
+        if (rawErrorMsg.includes("503") || rawErrorMsg.includes("high demand") || rawErrorMsg.includes("UNAVAILABLE")) {
+          geminiError = "現在、AIモデルへのリクエストが集中しているため、一時的に予測機能に制限がかかっております。安全にお世話ができるよう、標準的な栽培目安に基づいた自動フォールバック予測値を生成しました。";
+        } else {
+          geminiError = `予測計算時に一時的な接続エラーが発生しました。現在のお世話状況に基づき、自動フォールバック予測値を算出しました。`;
+        }
+
+        try {
+          console.log("AI計算が失敗または高負荷のため、プランターの安全なルールベース植物収穫予測フォールバックを開始します...");
+          const fallbackPredictions = activePlants.map(p => {
+            let daysToHarvest = 60; // デフォルト栽培日数
+            const nameLower = (p.name || "").toLowerCase();
+            const varietyLower = (p.variety || "").toLowerCase();
+
+            if (nameLower.includes("レタス") || varietyLower.includes("レタス")) {
+              daysToHarvest = 40;
+            } else if (nameLower.includes("トマト") || varietyLower.includes("トマト")) {
+              daysToHarvest = 90;
+            } else if (nameLower.includes("バジル") || varietyLower.includes("バジル")) {
+              daysToHarvest = 45;
+            } else if (nameLower.includes("ピーマン") || varietyLower.includes("ピーマン")) {
+              daysToHarvest = 80;
+            } else if (nameLower.includes("パクチー") || varietyLower.includes("パクチー")) {
+              daysToHarvest = 50;
+            }
+
+            const sowingDateStr = p.sowingDate || new Date().toISOString().split("T")[0];
+            const sowing = new Date(sowingDateStr);
+            const calculated = new Date(sowing.getTime() + daysToHarvest * 24 * 60 * 60 * 1000);
+            const calculatedStr = calculated.toISOString().split("T")[0];
+
+            return {
+              plantId: p.id,
+              calculatedHarvestDate: calculatedStr,
+              reason: `【栽培目安に基づく自動予測】現在、AIモデルが高負荷のため、標準的な栽培サイクル（およそ ${daysToHarvest} 日）と播種日（${sowingDateStr}）から算出した目安収穫日です。植物は現在「${p.stage === "seedling" ? "苗期" : p.stage === "vegetative" ? "生長期" : p.stage === "flowering" ? "開花期" : "実り期"}」段階にあります。引き続き日当たりやプランターの水切れにご注意ください。`
+            };
+          });
+
+          for (const pred of fallbackPredictions) {
+            const existingIdx = currentDb.harvestPredictions.findIndex(hp => hp.plantId === pred.plantId);
+            const predictionRecord = {
+              id: "pred-fallback-" + Date.now() + "-" + Math.random().toString(36).substr(2, 5),
+              plantId: pred.plantId,
+              calculatedHarvestDate: pred.calculatedHarvestDate,
+              reason: pred.reason,
+              updatedAt: new Date().toISOString()
+            };
+
+            if (existingIdx !== -1) {
+              currentDb.harvestPredictions[existingIdx] = predictionRecord;
+            } else {
+              currentDb.harvestPredictions.push(predictionRecord);
+            }
+          }
+          currentDb.lastHarvestCalculationAt = now.toISOString();
+          writeDB(currentDb);
+        } catch (fbErr) {
+          console.error("Failed to generate harvest predictions fallback:", fbErr);
+        }
       }
     }
 

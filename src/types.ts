@@ -16,7 +16,7 @@ export function getSystemTypeLabel(type: SystemType): string {
     case 'Outdoor_Soil':
       return '室外プランター (土耕)';
     case 'Outdoor_Ground':
-      return 'お庭の菜園・地植え (畑)';
+      return 'お庭の菜園・地植え (プランター)';
     case 'Hydro_Water':
       return '水耕プランター';
     case 'Other':

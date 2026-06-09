@@ -644,8 +644,18 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                   <div className="text-left">
-                    <div className="text-[10px] uppercase font-mono tracking-wider font-bold text-slate-400">
-                      プランター設定・管理
+                    <div className="flex items-center flex-wrap gap-1 text-[11px] font-sans font-semibold text-slate-400 mb-1">
+                      <button
+                        type="button"
+                        onClick={() => setActiveSystemSettingsId(null)}
+                        className="hover:text-emerald-700 transition-colors cursor-pointer"
+                      >
+                        プランターと植物
+                      </button>
+                      <ChevronRight className="w-3 h-3 text-slate-350 shrink-0" />
+                      <span className="truncate max-w-[120px] sm:max-w-none text-slate-500">{sys.name}</span>
+                      <ChevronRight className="w-3 h-3 text-slate-350 shrink-0" />
+                      <span className="text-slate-500">設定</span>
                     </div>
                     <h2 className="text-lg font-extrabold text-slate-800 tracking-tight mt-0.5 flex items-center gap-1.5">
                       ⚙️ {sys.name} の設定
@@ -979,7 +989,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                   >
                     <option value="Outdoor_Soil">室外プランター (土耕)</option>
                     <option value="Indoor_Soil">室内プランター (土耕)</option>
-                    <option value="Outdoor_Ground">お庭の菜園・地植え (畑)</option>
+                    <option value="Outdoor_Ground">お庭の菜園・地植え (プランター)</option>
                     <option value="Hydro_Water">水耕プランター</option>
                     <option value="Other">その他</option>
                   </select>
@@ -1576,8 +1586,24 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                 <ArrowLeft className="w-4 h-4" />
               </button>
               <div>
-                <div id="plant-details-breadcrumbs" className="text-[10px] uppercase font-mono tracking-wider font-bold text-slate-400">
-                  {selectedPlant.system ? selectedPlant.system.name : "ハイドロプランター"} &gt; 品種: {selectedPlant.variety}
+                <div id="plant-details-breadcrumbs" className="flex items-center flex-wrap gap-1 text-[11px] font-sans font-semibold text-slate-400 mb-1">
+                  <button
+                    type="button"
+                    onClick={() => onSelectPlant(null)}
+                    className="hover:text-emerald-700 transition-colors cursor-pointer"
+                  >
+                    プランターと植物
+                  </button>
+                  <ChevronRight className="w-3 h-3 text-slate-350 shrink-0" />
+                  <button
+                    type="button"
+                    onClick={() => onSelectPlant(null)}
+                    className="hover:text-emerald-700 transition-colors cursor-pointer truncate max-w-[120px] sm:max-w-none text-left"
+                  >
+                    {selectedPlant.system ? selectedPlant.system.name : "プランター"}
+                  </button>
+                  <ChevronRight className="w-3 h-3 text-slate-350 shrink-0" />
+                  <span className="text-slate-500 font-bold truncate max-w-[100px] sm:max-w-none">{selectedPlant.name} (品種: {selectedPlant.variety})</span>
                 </div>
                 <h2 className="text-lg font-extrabold text-slate-800 tracking-tight mt-0.5">
                   🌱 {selectedPlant.name}
