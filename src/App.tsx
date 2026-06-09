@@ -930,25 +930,6 @@ export default function App() {
               </p>
             </div>
 
-            <div className="relative flex items-center justify-center py-2">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-100"></div>
-              </div>
-              <span className="relative px-3 bg-white text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">
-                または
-              </span>
-            </div>
-
-            <div className="pt-1 select-none space-y-2">
-              <button
-                type="button"
-                onClick={() => handleEmailLogin("demo@example.com")}
-                className="w-full py-2.5 px-3 border border-dashed border-emerald-200 hover:border-emerald-300 bg-emerald-50/20 hover:bg-emerald-50/40 text-emerald-700 rounded-xl text-xs font-extrabold cursor-pointer transition-all text-center flex items-center justify-center gap-1.5 hover:scale-[1.01] active:scale-[0.99]"
-              >
-                🌱 デモ栽培を試す (ゲストお試しログイン)
-              </button>
-            </div>
-
           </div>
         </div>
       </div>
