@@ -1145,7 +1145,7 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
             return (
               <div className="space-y-8">
                 {/* 稼働中のプランター */}
-                {displayedActiveSystems.length > 0 && (
+                {(!viewArchived || displayedActiveSystems.length > 0) && (
                   <div className="space-y-4">
                     {viewArchived ? (
                       <h3 id="archived-systems-header" className="text-xs font-bold text-slate-500 flex items-center gap-1.5 px-1 text-left">
@@ -1156,8 +1156,10 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                       <div className="flex items-center justify-between gap-4 px-1">
                         <h3 id="active-systems-header" className="text-xs font-bold text-slate-700 flex items-center gap-1.5 text-left">
                           <span className="flex h-2 w-2 relative">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-50"></span>
+                            {displayedActiveSystems.length > 0 && (
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                            )}
+                            <span className={`relative inline-flex rounded-full h-2 w-2 ${displayedActiveSystems.length > 0 ? "bg-emerald-500" : "bg-slate-300"}`}></span>
                           </span>
                           稼働中のプランター ({displayedActiveSystems.length})
                         </h3>
@@ -1563,6 +1565,13 @@ export const SystemPlantsView: React.FC<SystemPlantsViewProps> = ({
                   <div className="bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-10 text-center text-slate-500">
                     <p className="font-bold text-slate-755 mb-1 text-slate-705">プランターが登録されていません</p>
                     <p className="text-xs text-slate-400">まずは上の「プランターを追加する」ボタンから登録しましょう！</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddSys(true)}
+                      className="mt-4 px-4 py-2 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-xs cursor-pointer inline-flex items-center gap-1.5 transition-all active:scale-95"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> プランターを追加する
+                    </button>
                   </div>
                 )}
               </div>
