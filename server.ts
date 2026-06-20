@@ -73,7 +73,7 @@ async function readDB(): Promise<DBStructure> {
     const collections = [
       "users", "systems", "plants", "systemMembers", 
       "growLogs", "plantPhotos", "chatMessages", 
-      "scheduleProposals", "harvestPredictions"
+      "scheduleProposals", "harvestPredictions", "nutrientLogs"
     ];
     
     const dbData: any = {};
@@ -104,7 +104,7 @@ async function readDB(): Promise<DBStructure> {
       dbData.lastHarvestCalculationAt = "";
     }
     
-    dbData.nutrientLogs = []; // satisfies DBStructure
+    // Removed hardcoded empty initialization for nutrientLogs to load from Firestore
     
     // If Firestore has no users, return empty DBStructure
     if (dbData.users.length === 0) {
@@ -137,7 +137,7 @@ async function writeDB(data: DBStructure): Promise<void> {
     const collections = [
       "users", "systems", "plants", "systemMembers", 
       "growLogs", "plantPhotos", "chatMessages", 
-      "scheduleProposals", "harvestPredictions"
+      "scheduleProposals", "harvestPredictions", "nutrientLogs"
     ];
     
     // Sync all primary collections
@@ -940,10 +940,10 @@ app.get("/api/plants/:id", async (req, res) => {
     .filter(ph => ph.plantId === id)
     .sort((a, b) => new Date(b.takenAt).getTime() - new Date(a.takenAt).getTime());
     
-  const nutrients = logs
-    .filter(gl => gl.appliedFertilizer)
-    .map(l => {
-      return {
+  const nutrients = [
+    ...logs
+      .filter(gl => gl.appliedFertilizer)
+      .map(l => ({
         id: "fg-" + l.id,
         plantId: l.plantId,
         postedBy: l.postedBy,
@@ -953,8 +953,17 @@ app.get("/api/plants/:id", async (req, res) => {
         amountMl: l.fertilizerAmountMl || 0,
         note: l.note,
         appliedAt: l.loggedAt
-      };
-    });
+      })),
+    ...(currentDb.nutrientLogs || [])
+      .filter(nl => nl.plantId === id)
+      .map(nl => {
+        const poster = currentDb.users.find(u => u.id === nl.postedBy);
+        return {
+          ...nl,
+          postedByName: poster ? poster.name : "不明なユーザー"
+        };
+      })
+  ].sort((a, b) => new Date(b.appliedAt).getTime() - new Date(a.appliedAt).getTime());
     
   const proposals = currentDb.scheduleProposals
     .filter(sp => sp.plantId === id)
@@ -1539,6 +1548,142 @@ app.put("/api/grow-logs/:id", async (req, res) => {
 
   await writeDB(currentDb);
   res.json(currentDb.growLogs[idx]);
+});
+
+app.delete("/api/grow-logs/:id", async (req, res) => {
+  const user = await getUserContext(req);
+  const { id } = req.params;
+
+  const currentDb = await readDB();
+  const idx = currentDb.growLogs.findIndex(l => l.id === id);
+  if (idx === -1) {
+    return res.status(404).json({ error: "Grow log not found" });
+  }
+
+  const log = currentDb.growLogs[idx];
+  const plant = currentDb.plants.find(p => p.id === log.plantId);
+  if (!plant) {
+    return res.status(404).json({ error: "Plant not found" });
+  }
+
+  // Permission check: poster or plant owner
+  if (log.postedBy !== user.id && plant.userId !== user.id) {
+    return res.status(403).json({ error: "許可されていません" });
+  }
+
+  currentDb.growLogs.splice(idx, 1);
+  await writeDB(currentDb);
+  res.json({ success: true });
+});
+
+app.post("/api/photos", async (req, res) => {
+  const user = await getUserContext(req);
+  const { plantId, storageKey, caption } = req.body;
+  if (!plantId || !storageKey) {
+    return res.status(400).json({ error: "plantId and storageKey are required" });
+  }
+
+  const currentDb = await readDB();
+  const plant = currentDb.plants.find(p => p.id === plantId);
+  if (!plant) {
+    return res.status(404).json({ error: "Plant not found" });
+  }
+
+  const newPhoto: PlantPhoto = {
+    id: "photo-" + Date.now(),
+    plantId,
+    growLogId: null,
+    postedBy: user.id,
+    storageKey,
+    caption: caption || "栽培成長スナップ",
+    takenAt: new Date().toISOString()
+  };
+
+  currentDb.plantPhotos.push(newPhoto);
+  await writeDB(currentDb);
+  res.status(201).json(newPhoto);
+});
+
+app.post("/api/nutrient-logs", async (req, res) => {
+  const user = await getUserContext(req);
+  const { plantId, brand, dilutionRate, amountMl, note } = req.body;
+  if (!plantId) {
+    return res.status(400).json({ error: "plantId is required" });
+  }
+
+  const currentDb = await readDB();
+  const plant = currentDb.plants.find(p => p.id === plantId);
+  if (!plant) {
+    return res.status(404).json({ error: "Plant not found" });
+  }
+
+  const newNutrient: NutrientLog = {
+    id: "nut-" + Date.now(),
+    plantId,
+    postedBy: user.id,
+    brand: brand || "一般肥料",
+    dilutionRate: dilutionRate !== "" && dilutionRate !== undefined && dilutionRate !== null ? parseInt(dilutionRate, 10) : 1,
+    amountMl: amountMl !== "" && amountMl !== undefined && amountMl !== null ? parseFloat(amountMl) : 0,
+    note: note || "",
+    appliedAt: new Date().toISOString()
+  };
+
+  currentDb.nutrientLogs.push(newNutrient);
+  await writeDB(currentDb);
+  res.status(201).json({ ...newNutrient, postedByName: user.name });
+});
+
+app.put("/api/nutrient-logs/:id", async (req, res) => {
+  const user = await getUserContext(req);
+  const { id } = req.params;
+  const { brand, dilutionRate, amountMl, note, appliedAt } = req.body;
+
+  const currentDb = await readDB();
+  const idx = currentDb.nutrientLogs.findIndex(nl => nl.id === id);
+  if (idx === -1) {
+    return res.status(404).json({ error: "Nutrient log not found" });
+  }
+
+  const nut = currentDb.nutrientLogs[idx];
+  const plant = currentDb.plants.find(p => p.id === nut.plantId);
+  if (!plant) {
+    return res.status(404).json({ error: "Plant not found" });
+  }
+
+  if (brand !== undefined) currentDb.nutrientLogs[idx].brand = brand;
+  if (dilutionRate !== undefined) currentDb.nutrientLogs[idx].dilutionRate = dilutionRate !== "" && dilutionRate !== null ? parseInt(dilutionRate, 10) : 1;
+  if (amountMl !== undefined) currentDb.nutrientLogs[idx].amountMl = amountMl !== "" && amountMl !== null ? parseFloat(amountMl) : 0;
+  if (note !== undefined) currentDb.nutrientLogs[idx].note = note;
+  if (appliedAt !== undefined) currentDb.nutrientLogs[idx].appliedAt = appliedAt;
+
+  await writeDB(currentDb);
+  res.json(currentDb.nutrientLogs[idx]);
+});
+
+app.delete("/api/nutrient-logs/:id", async (req, res) => {
+  const user = await getUserContext(req);
+  const { id } = req.params;
+
+  const currentDb = await readDB();
+  const idx = currentDb.nutrientLogs.findIndex(nl => nl.id === id);
+  if (idx === -1) {
+    return res.status(404).json({ error: "Nutrient log not found" });
+  }
+
+  const nut = currentDb.nutrientLogs[idx];
+  const plant = currentDb.plants.find(p => p.id === nut.plantId);
+  if (!plant) {
+    return res.status(404).json({ error: "Plant not found" });
+  }
+
+  // Permission check: poster or plant owner
+  if (nut.postedBy !== user.id && plant.userId !== user.id) {
+    return res.status(403).json({ error: "許可されていません" });
+  }
+
+  currentDb.nutrientLogs.splice(idx, 1);
+  await writeDB(currentDb);
+  res.json({ success: true });
 });
 
 app.get("/api/proposals", async (req, res) => {

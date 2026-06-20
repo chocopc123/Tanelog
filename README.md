@@ -62,7 +62,7 @@ APP_URL="http://localhost:3000"
 ### 3. Firebase Local Emulator Suite の起動
 ローカル開発時は、認証（Auth）およびデータベース（Firestore）のモックとして Firebase Emulator を使用します。
 ```bash
-npx firebase emulators:start
+npx firebase-tools emulators:start
 ```
 > [!NOTE]
 > エミュレータを起動すると、デフォルトで `localhost:9099` (Auth) および `localhost:8080` (Firestore) でエミュレータが起動します。アプリケーションは開発環境（`import.meta.env.DEV`）において自動でこれらのエミュレータに接続します。
