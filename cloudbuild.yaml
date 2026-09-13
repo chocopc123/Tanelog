@@ -1,5 +1,29 @@
 steps:
+  # 1. マルチステージ Dockerfile でイメージをビルド
   - name: 'gcr.io/cloud-builders/docker'
     args: ['build', '-t', 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tanelog/tanelog:latest', '.']
+
+  # 2. ビルドしたイメージを Artifact Registry にプッシュ
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['push', 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tanelog/tanelog:latest']
+
+  # 3. Cloud Run へ最新イメージをデプロイ
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'tanelog'
+      - '--image'
+      - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tanelog/tanelog:latest'
+      - '--region'
+      - 'asia-northeast1'
+      - '--port'
+      - '8080'
+
 images:
   - 'asia-northeast1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/tanelog/tanelog:latest'
+
+# カスタムサービスアカウント実行時のログ出力設定
+options:
+  logging: CLOUD_LOGGING_ONLY
