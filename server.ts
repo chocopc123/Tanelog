@@ -35,7 +35,7 @@ const firestore = admin.firestore();
 
 // Initialize Express
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
 // High body limits for uploading base64 crop photos
 app.use(express.json({ limit: "50mb" }));
@@ -2159,15 +2159,6 @@ app.get("/api/calendar/export", async (req, res) => {
 async function boot() {
   console.log("サーバーの起動シーケンスを開始します。");
   
-  // Firestoreの初期疎通確認
-  try {
-    console.log("[Firestore] Verifying connection on startup...");
-    await firestore.collection("metadata").doc("appState").get();
-    console.log("[Firestore] Firestore connection verified successfully.");
-  } catch (err) {
-    console.error("[Firestore] ERROR: Failed to connect to Firestore on startup:", err);
-  }
-  
   const distPath = path.join(process.cwd(), "dist");
 
   if (process.env.NODE_ENV === "production") {
@@ -2190,8 +2181,18 @@ async function boot() {
       console.log(`Development custom fullstack server running on http://localhost:${PORT}`);
     });
   }
+
+  // Firestoreの初期疎通確認（ポート解放後にバックグラウンドで実行）
+  try {
+    console.log("[Firestore] Verifying connection on startup...");
+    await firestore.collection("metadata").doc("appState").get();
+    console.log("[Firestore] Firestore connection verified successfully.");
+  } catch (err) {
+    console.error("[Firestore] ERROR: Failed to connect to Firestore on startup:", err);
+  }
 }
 
 boot().catch(err => {
   console.error("Failed to boot hydroponics engine server:", err);
 });
+

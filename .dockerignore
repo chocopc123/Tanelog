@@ -1,0 +1,40 @@
+# バージョン管理・Git
+.git
+.gitignore
+
+# 依存関係・キャッシュ
+node_modules
+.npm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ビルド成果物・一時ファイル
+dist
+build
+.cache
+.vite
+
+# 環境変数・認証情報
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Firebaseローカルログ・エミュレータデータ
+.firebase
+firestore-debug.log
+ui-debug.log
+firebase-debug.log
+
+# エディタ・OS一時ファイル
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# ドキュメント・エージェント設定
+.agents
+*.md
+LICENSE
